@@ -5,7 +5,7 @@ export default function TabsLayout() {
   const router = useRouter();
   return (
     <>
-      <Tabs
+      <Tabs 
         screenOptions={{
           tabBarActiveTintColor: "orange", //標籤顏色
           headerStyle: {
