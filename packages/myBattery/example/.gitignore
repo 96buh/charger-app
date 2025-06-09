@@ -10,6 +10,7 @@ web-build/
 expo-env.d.ts
 
 # Native
+.kotlin/
 *.orig.*
 *.jks
 *.p8
@@ -34,11 +35,3 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
-app-example
-
-
-google-services.json
-charge-notifications-firebase.json
-/ios
-/android
-.vscode
