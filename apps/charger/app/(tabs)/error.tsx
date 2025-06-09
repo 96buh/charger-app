@@ -19,14 +19,18 @@ export default function Error() {
 
   const fetchStats = async () => {
     try {
-      const s = await Battery.getStats();
+      const raw = await Battery.getStats();
+      const power_W = (raw.current_mA / 1000) * (raw.voltage_mV / 1000); // 轉 A、V
+      const s: BatteryStats = { ...raw, power_W };
       setStats(s);
+
       if (record) {
         samples.current.push({
           t: new Date().toLocaleTimeString("en-GB", { hour12: false }), // 24h
           current: s.current_mA,
           voltage: s.voltage_mV,
           temp: s.temperature_C,
+          power: s.power_W,
         });
         if (startRef.current !== null) {
           const sec = Math.floor((Date.now() - startRef.current) / 1000);
@@ -63,9 +67,9 @@ export default function Error() {
   const exportCsv = async () => {
     if (samples.current.length === 0) return;
 
-    const header = "time,current_mA,voltage_mV,temp_C\n"; // 改表頭
+    const header = "time,current_mA,voltage_mV,temp_C,power_W\n";
     const rows = samples.current
-      .map((r) => `${r.t},${r.current},${r.voltage},${r.temp}`) // 用 r.t
+      .map((r) => `${r.t},${r.current},${r.voltage},${r.temp},${r.power}`)
       .join("\n");
     const csv = header + rows;
 
@@ -84,8 +88,8 @@ export default function Error() {
   // 充電數據顯示
   const current = stats ? Math.abs(stats.current_mA).toFixed(0) + " mA" : "--";
   const voltage = stats ? (stats.voltage_mV / 1000).toFixed(3) + " V" : "--";
-  const power_W = stats ? (current * voltage) / 1000 + " W" : "--"; // 轉成 W
   const temp = stats ? stats.temperature_C.toFixed(1) + " °C" : "--";
+  const power = stats ? stats.power_W.toFixed(2) + " W" : "--"; // **新增**
 
   return (
     <View style={styles.container}>
@@ -96,7 +100,7 @@ export default function Error() {
         hint={stats && (stats.current_mA < 0 ? "充電" : "放電")}
       />
       <Info label="電壓" value={voltage} />
-      <Info label="功率" value={power_W} />
+      <Info label="功率" value={power} />
       <Info label="溫度" value={temp} />
 
       {record && <Text style={styles.timer}>{`已錄製 ${elapsed} 秒`}</Text>}

@@ -16,44 +16,85 @@ import { type BatteryStats } from "@/utils/types";
 const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
 const Battery = requireNativeModule("Mybattery");
 
+const WINDOW_SEC = 30;
+const SAMPLING_HZ = 1;
+
+const pushFixed = (arr: DataPoint[], val: number): DataPoint[] => {
+  const next = [...arr.slice(1), { time: 0, lowTmp: val, highTmp: val }];
+  return next.map((p, idx) => ({ ...p, time: idx }));
+};
+
+const makeEmptySeries = (): DataPoint[] =>
+  Array.from({ length: WINDOW_SEC + 1 }, (_, idx) => ({
+    time: idx,
+    lowTmp: 0,
+    highTmp: 0,
+  }));
+
 /** 渲染home組件, 使用widget顯示充電訊息, 用PagerView放不同的圖表
  */
 export default function Index() {
   // real data
   const [stats, setStats] = useState<BatteryStats | null>(null);
+  const [currentData, setCurrent] = useState<DataPoint[]>(makeEmptySeries());
+  const [voltageData, setVoltage] = useState<DataPoint[]>(makeEmptySeries());
+  const [powerData, setPower] = useState<DataPoint[]>(makeEmptySeries());
+  // useEffect(() => {
+  //   async function fetchStats() {
+  //     try {
+  //       const s = await Battery.getStats();
+  //       setStats(s);
+  //     } catch (e) {
+  //       console.warn("Battery module error:", e);
+  //     }
+  //   }
+  //   fetchStats(); // 進畫面先抓一次
+  //   const id = setInterval(fetchStats, 1000); // 1 Hz 更新
+  //   return () => clearInterval(id);
+  // }, []);
+
   useEffect(() => {
-    async function fetchStats() {
+    const fetchStats = async () => {
       try {
         const s = await Battery.getStats();
         setStats(s);
+
+        const I_mA = Math.abs(s.current_mA);
+        const V_V = s.voltage_mV / 1000;
+        const P_W = (I_mA / 1000) * V_V;
+
+        setCurrent((prev) => pushFixed(prev, I_mA));
+        setVoltage((prev) => pushFixed(prev, V_V));
+        setPower((prev) => pushFixed(prev, P_W));
       } catch (e) {
         console.warn("Battery module error:", e);
       }
-    }
-    fetchStats(); // 進畫面先抓一次
-    const id = setInterval(fetchStats, 1000); // 1 Hz 更新
+    };
+
+    fetchStats(); // 先抓一次
+    const id = setInterval(fetchStats, 1000 / SAMPLING_HZ);
     return () => clearInterval(id);
   }, []);
 
   // fake data
-  const [chartData, setChartData] = useState<DataPoint[]>(
-    Array.from({ length: 31 }, (_, i) => generateRandomDataPoint(i))
-  );
-  useFocusEffect(
-    useCallback(() => {
-      const interval = setInterval(() => {
-        setChartData((prevData) => {
-          const newData = [
-            ...prevData.slice(1),
-            generateRandomDataPoint(prevData.length - 1),
-          ];
-          return newData.map((item, index) => ({ ...item, time: index }));
-        });
-      }, 500);
-
-      return () => clearInterval(interval);
-    }, [])
-  );
+  // const [chartData, setChartData] = useState<DataPoint[]>(
+  //   Array.from({ length: 31 }, (_, i) => generateRandomDataPoint(i))
+  // );
+  // useFocusEffect(
+  //   useCallback(() => {
+  //     const interval = setInterval(() => {
+  //       setChartData((prevData) => {
+  //         const newData = [
+  //           ...prevData.slice(1),
+  //           generateRandomDataPoint(prevData.length - 1),
+  //         ];
+  //         return newData.map((item, index) => ({ ...item, time: index }));
+  //       });
+  //     }, 500);
+  //
+  //     return () => clearInterval(interval);
+  //   }, [])
+  // );
 
   const pageRef = useRef<PagerView>(null);
   const position = useSharedValue(0);
@@ -80,13 +121,13 @@ export default function Index() {
           ref={pageRef}
         >
           <View key="1" style={{ flex: 1 }}>
-            <LineChart data={chartData} lineColor="red" />
+            <LineChart data={currentData} lineColor="red" />
           </View>
           <View key="2" style={{ flex: 1 }}>
-            <LineChart data={chartData} lineColor="darkgreen" />
+            <LineChart data={voltageData} lineColor="darkgreen" />
           </View>
           <View key="3" style={{ flex: 1 }}>
-            <LineChart data={chartData} lineColor="darkblue" />
+            <LineChart data={powerData} lineColor="darkblue" />
           </View>
         </AnimatedPagerView>
         {/* Pagination indicator */}

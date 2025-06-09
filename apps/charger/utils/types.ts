@@ -3,6 +3,7 @@ export type BatteryStats = {
   current_mA: number;
   voltage_mV: number;
   temperature_C: number;
+  power_W: number;
 };
 
 export type Sample = {
@@ -10,4 +11,5 @@ export type Sample = {
   current: number;
   voltage: number;
   temp: number;
+  power: number;
 };
