@@ -42,7 +42,10 @@
     "react-native-webview": "13.13.5",
     "victory-native": "^41.17.3",
     "expo-battery": "~9.1.4",
-    "@react-native-community/slider": "4.5.6"
+    "@react-native-community/slider": "4.5.6",
+    "expo-modules-core": "~2.4.0",
+    "expo-sharing": "~13.1.5",
+    "expo-file-system": "~18.1.10"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
