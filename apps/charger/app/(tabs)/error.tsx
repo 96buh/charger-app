@@ -20,15 +20,22 @@ export default function Error() {
   const fetchStats = async () => {
     try {
       const raw = await Battery.getStats();
-      const power_W = (raw.current_mA / 1000) * (raw.voltage_mV / 1000); // 轉 A、V
+      // const power_W = (raw.current_mA / 1000) * (raw.voltage_mV / 1000); // 轉 A、V
+      // const s: BatteryStats = { ...raw, power_W };
+
+      const current_A = Math.abs(raw.current_mA) / 1000; // mA → A
+      const voltage_V = raw.voltage_mV / 1000; // mV → V
+      const power_W = current_A * voltage_V;
       const s: BatteryStats = { ...raw, power_W };
       setStats(s);
 
       if (record) {
         samples.current.push({
           t: new Date().toLocaleTimeString("en-GB", { hour12: false }), // 24h
-          current: s.current_mA,
-          voltage: s.voltage_mV,
+          // current: s.current_mA,
+          // voltage: s.voltage_mV,
+          current: current_A, // 已是正值 (A)
+          voltage: voltage_V, // (V)
           temp: s.temperature_C,
           power: s.power_W,
         });
@@ -67,7 +74,8 @@ export default function Error() {
   const exportCsv = async () => {
     if (samples.current.length === 0) return;
 
-    const header = "time,current_mA,voltage_mV,temp_C,power_W\n";
+    // const header = "time,current_mA,voltage_mV,temp_C,power_W\n";
+    const header = "time,current_A,voltage_V,temp_C,power_W\n";
     const rows = samples.current
       .map((r) => `${r.t},${r.current},${r.voltage},${r.temp},${r.power}`)
       .join("\n");
@@ -86,10 +94,20 @@ export default function Error() {
   }, [record]);
 
   // 充電數據顯示
-  const current = stats ? Math.abs(stats.current_mA).toFixed(0) + " mA" : "--";
-  const voltage = stats ? (stats.voltage_mV / 1000).toFixed(3) + " V" : "--";
+  // const current = stats ? Math.abs(stats.current_mA).toFixed(0) + " mA" : "--";
+  // const voltage = stats ? (stats.voltage_mV / 1000).toFixed(3) + " V" : "--";
   const temp = stats ? stats.temperature_C.toFixed(1) + " °C" : "--";
-  const power = stats ? stats.power_W.toFixed(2) + " W" : "--"; // **新增**
+  // const power = stats ? stats.power_W.toFixed(2) + " W" : "--"; // **新增**
+
+  const current = stats
+    ? (Math.abs(stats.current_mA) / 1000).toFixed(3) + " A"
+    : "--";
+  const voltage = stats ? (stats.voltage_mV / 1000).toFixed(3) + " V" : "--";
+  const power = stats
+    ? ((Math.abs(stats.current_mA) / 1000) * (stats.voltage_mV / 1000)).toFixed(
+        2
+      ) + " W"
+    : "--";
 
   return (
     <View style={styles.container}>

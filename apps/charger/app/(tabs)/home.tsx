@@ -39,19 +39,6 @@ export default function Index() {
   const [currentData, setCurrent] = useState<DataPoint[]>(makeEmptySeries());
   const [voltageData, setVoltage] = useState<DataPoint[]>(makeEmptySeries());
   const [powerData, setPower] = useState<DataPoint[]>(makeEmptySeries());
-  // useEffect(() => {
-  //   async function fetchStats() {
-  //     try {
-  //       const s = await Battery.getStats();
-  //       setStats(s);
-  //     } catch (e) {
-  //       console.warn("Battery module error:", e);
-  //     }
-  //   }
-  //   fetchStats(); // 進畫面先抓一次
-  //   const id = setInterval(fetchStats, 1000); // 1 Hz 更新
-  //   return () => clearInterval(id);
-  // }, []);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -59,11 +46,16 @@ export default function Index() {
         const s = await Battery.getStats();
         setStats(s);
 
-        const I_mA = Math.abs(s.current_mA);
-        const V_V = s.voltage_mV / 1000;
-        const P_W = (I_mA / 1000) * V_V;
+        // const I_mA = Math.abs(s.current_mA);
+        // const V_V = s.voltage_mV / 1000;
+        // const P_W = (I_mA / 1000) * V_V;
+        //
+        // setCurrent((prev) => pushFixed(prev, I_mA));
+        const I_A = Math.abs(s.current_mA) / 1000; // mA → A（正值）
+        const V_V = s.voltage_mV / 1000; // mV → V
+        const P_W = I_A * V_V; // W
 
-        setCurrent((prev) => pushFixed(prev, I_mA));
+        setCurrent((prev) => pushFixed(prev, I_A));
         setVoltage((prev) => pushFixed(prev, V_V));
         setPower((prev) => pushFixed(prev, P_W));
       } catch (e) {
@@ -76,26 +68,6 @@ export default function Index() {
     return () => clearInterval(id);
   }, []);
 
-  // fake data
-  // const [chartData, setChartData] = useState<DataPoint[]>(
-  //   Array.from({ length: 31 }, (_, i) => generateRandomDataPoint(i))
-  // );
-  // useFocusEffect(
-  //   useCallback(() => {
-  //     const interval = setInterval(() => {
-  //       setChartData((prevData) => {
-  //         const newData = [
-  //           ...prevData.slice(1),
-  //           generateRandomDataPoint(prevData.length - 1),
-  //         ];
-  //         return newData.map((item, index) => ({ ...item, time: index }));
-  //       });
-  //     }, 500);
-  //
-  //     return () => clearInterval(interval);
-  //   }, [])
-  // );
-
   const pageRef = useRef<PagerView>(null);
   const position = useSharedValue(0);
   const totalPages = 3;
@@ -106,10 +78,15 @@ export default function Index() {
 
   /** 從stats得到電流，電壓，溫度
    */
-  const current_mA = stats?.current_mA ?? 0;
+  // const current_mA = stats?.current_mA ?? 0;
+  // const voltage_V = stats ? stats.voltage_mV / 1000 : 0;
+  // const temperature_C = stats?.temperature_C ?? 0;
+  // const power_W = (Math.abs(current_mA) * voltage_V) / 1000; // 轉成 W
+
+  const current_A = stats ? Math.abs(stats.current_mA) / 1000 : 0;
   const voltage_V = stats ? stats.voltage_mV / 1000 : 0;
   const temperature_C = stats?.temperature_C ?? 0;
-  const power_W = (Math.abs(current_mA) * voltage_V) / 1000; // 轉成 W
+  const power_W = current_A * voltage_V; // W
 
   return (
     <>
@@ -141,10 +118,11 @@ export default function Index() {
           />
           <SquareWidget
             name="電流"
-            value={current_mA}
+            value={current_A.toFixed(3)}
             icon="current-ac"
-            unit="mA"
+            unit="A"
           />
+
           <SquareWidget
             name="電壓"
             value={voltage_V.toFixed(2)}
