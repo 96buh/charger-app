@@ -20,17 +20,10 @@ export default function Settings() {
   const [temp1, setTemp1] = useState(37); // 第一階段溫度值
   const [temp2, setTemp2] = useState(52); // 第二階段溫度值
 
-  const handleAccountAction = (action: "帳戶名稱" | "修改密碼" | "登出") => {
-    if (action === "帳戶名稱") {
+  const handleAccountAction = (action: "帳戶登入/註冊") => {
+    if (action === "帳戶登入/註冊") {
       router.push("/(auth)/account"); // 跳到 /account 頁面
-    } else if (action === "修改密碼") {
-      router.push("../change-password"); // 跳到 /change-password 頁面
-    } else if (action === "登出") {
-      Alert.alert("登出", "確定要登出？", [
-        { text: "否", style: "cancel" },
-        { text: "是", onPress: () => router.push("/logout") },
-      ]);
-    }
+    } 
   };
 
   return (
@@ -124,22 +117,8 @@ export default function Settings() {
 
       <Text style={styles.sectionTitle}>帳戶管理</Text>
       <TouchableOpacity
-        style={styles.accountButton}
-        onPress={() => handleAccountAction("帳戶名稱")}
-      >
-        <Text style={styles.label}>帳戶名稱</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.accountButton}
-        onPress={() => handleAccountAction("修改密碼")}
-      >
-        <Text style={styles.label}>修改密碼</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.accountButton}
-        onPress={() => handleAccountAction("登出")}
-      >
-        <Text style={styles.label}>登出</Text>
+        style={styles.accountButton} onPress={() => handleAccountAction("帳戶登入/註冊")}>
+          <Text style={styles.label}>帳戶登入/註冊</Text>
       </TouchableOpacity>
     </View>
   );
