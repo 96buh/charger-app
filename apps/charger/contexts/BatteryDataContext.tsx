@@ -15,8 +15,8 @@ const WINDOW_SEC = 30;
 const SAMPLING_HZ = 1;
 
 const MODEL_URL =
-  "https://github.com/96buh/stuff/raw/refs/heads/main/lstm_model.onnx";
-const MODEL_PATH = FileSystem.documentDirectory + "lstm_model.onnx";
+  "https://github.com/96buh/stuff/raw/refs/heads/main/lstm_model_2.onnx";
+const MODEL_PATH = FileSystem.documentDirectory + "lstm_model_2.onnx";
 
 type BatteryDataContextProps = {
   stats: BatteryStats | null;
@@ -118,14 +118,12 @@ export const BatteryDataProvider: React.FC<{ children: React.ReactNode }> = ({
     const runLSTM = async () => {
       if (!sessionRef.current) return;
 
-      // 抓最新 10 筆
       const seqLen = 10;
       const currentArr = currentList.slice(-seqLen);
       const voltageArr = voltageList.slice(-seqLen);
       const powerArr = powerList.slice(-seqLen);
       const tempArr = temperatureList.slice(-seqLen);
 
-      // 防呆：若有任何欄位不足 10 筆，就 return
       if (
         currentArr.length < seqLen ||
         voltageArr.length < seqLen ||
@@ -134,11 +132,9 @@ export const BatteryDataProvider: React.FC<{ children: React.ReactNode }> = ({
       )
         return;
 
-      // 組成 [ [cur, vol, pow, temp], ... ] 共 10 組
       const inputArr = Array(seqLen)
         .fill(0)
         .map((_, i) => [currentArr[i], voltageArr[i], powerArr[i], tempArr[i]]);
-      // 平坦化成一維陣列，shape [1, 10, 4]
       const flat = inputArr.flat();
 
       try {
