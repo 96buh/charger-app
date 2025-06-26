@@ -22,6 +22,7 @@
     "expo-battery": "~9.1.4",
     "expo-blur": "~14.1.5",
     "expo-constants": "~17.1.6",
+    "expo-dev-client": "~5.2.0",
     "expo-file-system": "~18.1.10",
     "expo-font": "~13.3.1",
     "expo-haptics": "~14.1.4",
@@ -36,6 +37,7 @@
     "expo-system-ui": "~5.0.8",
     "expo-web-browser": "~14.1.6",
     "mybattery": "*",
+    "onnxruntime-react-native": "^1.22.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.3",
@@ -46,8 +48,7 @@
     "react-native-screens": "~4.11.1",
     "react-native-web": "~0.20.0",
     "react-native-webview": "13.13.5",
-    "victory-native": "^41.17.3",
-    "expo-dev-client": "~5.2.0"
+    "victory-native": "^41.17.3"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
