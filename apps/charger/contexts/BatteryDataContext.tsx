@@ -13,10 +13,15 @@ import * as FileSystem from "expo-file-system";
 const Battery = requireNativeModule("Mybattery");
 const WINDOW_SEC = 30;
 const SAMPLING_HZ = 1;
+const SEQ_LEN = 10;
 
 const MODEL_URL =
-  "https://github.com/96buh/stuff/raw/refs/heads/main/lstm_model_2.onnx";
-const MODEL_PATH = FileSystem.documentDirectory + "lstm_model_2.onnx";
+  "https://github.com/96buh/stuff/raw/refs/heads/main/lstm_model_3.onnx";
+const MODEL_PATH = FileSystem.documentDirectory + "lstm_model_3.onnx";
+
+/* 標準化參數 */
+const MEAN = [1.04074985, 4.02928943, 35.13483291, 4.19241723];
+const STD = [0.23643574, 0.16394218, 1.48206313, 0.95759648];
 
 type BatteryDataContextProps = {
   stats: BatteryStats | null;
@@ -118,29 +123,35 @@ export const BatteryDataProvider: React.FC<{ children: React.ReactNode }> = ({
     const runLSTM = async () => {
       if (!sessionRef.current) return;
 
-      const seqLen = 10;
-      const currentArr = currentList.slice(-seqLen);
-      const voltageArr = voltageList.slice(-seqLen);
-      const powerArr = powerList.slice(-seqLen);
-      const tempArr = temperatureList.slice(-seqLen);
+      const currentArr = currentList.slice(-SEQ_LEN);
+      const voltageArr = voltageList.slice(-SEQ_LEN);
+      const powerArr = powerList.slice(-SEQ_LEN);
+      const tempArr = temperatureList.slice(-SEQ_LEN);
 
       if (
-        currentArr.length < seqLen ||
-        voltageArr.length < seqLen ||
-        powerArr.length < seqLen ||
-        tempArr.length < seqLen
+        currentArr.length < SEQ_LEN ||
+        voltageArr.length < SEQ_LEN ||
+        powerArr.length < SEQ_LEN ||
+        tempArr.length < SEQ_LEN
       )
         return;
 
-      const inputArr = Array(seqLen)
+      // 正規化
+      const inputArr = Array(SEQ_LEN)
         .fill(0)
-        .map((_, i) => [currentArr[i], voltageArr[i], powerArr[i], tempArr[i]]);
+        .map((_, i) => [
+          (currentArr[i] - MEAN[0]) / STD[0],
+          (voltageArr[i] - MEAN[1]) / STD[1],
+          (tempArr[i] - MEAN[2]) / STD[2],
+          (powerArr[i] - MEAN[3]) / STD[3],
+        ]);
+
       const flat = inputArr.flat();
 
       try {
         const tensor = new ort.Tensor("float32", Float32Array.from(flat), [
           1,
-          seqLen,
+          SEQ_LEN,
           4,
         ]);
         const feeds = {
