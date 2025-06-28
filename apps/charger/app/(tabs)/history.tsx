@@ -1,7 +1,11 @@
-import { StyleSheet, Text, View, FlatList } from "react-native";
+import { StyleSheet, Text, View, ScrollView } from "react-native";
+import { useSettings } from "@/contexts/SettingsContext";
 import { useBatteryData } from "@/contexts/BatteryDataContext";
+import { useHardwareData } from "@/contexts/HardwareContext";
 
-export default function Error() {
+export default function ErrorPage() {
+  const { source } = useSettings();
+
   const labelMap = {
     0: "正常",
     1: "線生鏽",
@@ -10,35 +14,68 @@ export default function Error() {
     4: "線剝落",
     5: "線彎折",
   };
-  const {
-    stats,
-    currentList,
-    voltageList,
-    powerList,
-    temperatureList,
-    lstmResult,
-  } = useBatteryData();
+
+  // 拿本機或esp32的資料
+  const battery = useBatteryData();
+  const { data: hardwareData, error } = useHardwareData();
+
+  // 統一取值
+  const isLocal = source === "local";
+  const stats = isLocal ? battery.stats : hardwareData?.stats;
+  const currentList = isLocal ? battery.currentList : hardwareData?.currentList;
+  const voltageList = isLocal ? battery.voltageList : hardwareData?.voltageList;
+  const powerList = isLocal ? battery.powerList : hardwareData?.powerList;
+  const temperatureList = isLocal
+    ? battery.temperatureList
+    : hardwareData?.temperatureList;
+
+  // 統一分類
+  let predicted = isLocal ? battery.lstmResult : hardwareData?.predicted;
+  let label =
+    predicted !== undefined && labelMap[predicted] !== undefined
+      ? labelMap[predicted]
+      : isLocal
+      ? "未知"
+      : hardwareData?.label || "未知";
+
+  // 顯示異常狀態
+  const abnormal =
+    predicted !== null && predicted !== undefined && predicted !== 0;
 
   return (
-    <View style={styles.container}>
-      <Text>最新電流：{currentList[currentList.length - 1]?.toFixed(3)} A</Text>
-      <Text>最新電壓：{voltageList[voltageList.length - 1]?.toFixed(2)} V</Text>
-      <Text>最新功率：{powerList[powerList.length - 1]?.toFixed(2)} W</Text>
-      <Text>
-        最新溫度：{temperatureList[temperatureList.length - 1]?.toFixed(1)} °C
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text
+        style={{
+          color: abnormal ? "red" : "green",
+          fontWeight: "bold",
+          fontSize: 20,
+          marginBottom: 8,
+        }}
+      >
+        {abnormal ? `異常：${label}` : `狀態：${label}`}
       </Text>
       <Text>
-        模型分類結果：{lstmResult}（{labelMap[lstmResult ?? 0]})
+        最新電流：{currentList?.[currentList.length - 1]?.toFixed(3) ?? "無"} A
       </Text>
-      {/* ---------- */}
+      <Text>
+        最新電壓：{voltageList?.[voltageList.length - 1]?.toFixed(2) ?? "無"} V
+      </Text>
+      <Text>
+        最新功率：{powerList?.[powerList.length - 1]?.toFixed(2) ?? "無"} W
+      </Text>
+      <Text>
+        最新溫度：
+        {temperatureList?.[temperatureList.length - 1]?.toFixed(1) ?? "無"} °C
+      </Text>
+
       <View style={{ gap: 8, padding: 8 }}>
-        <Text>最近10秒數據：</Text>
+        <Text style={{ fontWeight: "bold" }}>最近10秒數據：</Text>
         {[
-          { label: "電流", data: currentList.slice(-10), digits: 2 },
-          { label: "電壓", data: voltageList.slice(-10), digits: 2 },
-          { label: "功率", data: powerList.slice(-10), digits: 2 },
-          { label: "溫度", data: temperatureList.slice(-10), digits: 1 },
-        ].map((row, idx) => (
+          { label: "電流", data: currentList?.slice(-10) ?? [], digits: 2 },
+          { label: "電壓", data: voltageList?.slice(-10) ?? [], digits: 2 },
+          { label: "功率", data: powerList?.slice(-10) ?? [], digits: 2 },
+          { label: "溫度", data: temperatureList?.slice(-10) ?? [], digits: 1 },
+        ].map((row) => (
           <View
             key={row.label}
             style={{
@@ -55,7 +92,7 @@ export default function Error() {
               <View
                 key={i}
                 style={{
-                  width: 38, // 固定每個格子的寬度，數字才不會被壓縮
+                  width: 38,
                   alignItems: "center",
                   marginHorizontal: 2,
                 }}
@@ -66,18 +103,15 @@ export default function Error() {
           </View>
         ))}
       </View>
-    </View>
+      {/* 如果有錯誤提示 */}
+      {error && <Text style={{ color: "red" }}>{error}</Text>}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    padding: 20,
     backgroundColor: "white",
-  },
-  text: {
-    color: "black",
   },
 });

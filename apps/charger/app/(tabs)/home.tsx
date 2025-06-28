@@ -1,72 +1,85 @@
-import { View, StyleSheet, Text, SafeAreaView } from "react-native";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { View, StyleSheet, SafeAreaView, Text } from "react-native";
+import { useState, useRef } from "react";
 import Animated, { useSharedValue } from "react-native-reanimated";
 import PagerView from "react-native-pager-view";
-import { useFocusEffect } from "expo-router";
-import { requireNativeModule } from "expo-modules-core";
+
+// contexts
+import { useSettings } from "@/contexts/SettingsContext";
+import { useBatteryData } from "@/contexts/BatteryDataContext";
+import { useHardwareData } from "@/contexts/HardwareContext";
 
 // components and utils
 import { SquareWidget } from "@/components/squareWidget";
 import { LineChart } from "@/components/LineChart";
-import { generateRandomDataPoint, type DataPoint } from "@/utils/data";
 import { PaginationIndicator } from "@/components/PaginationDots";
-import { type BatteryStats } from "@/utils/types";
 
 // constants
 const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
-const Battery = requireNativeModule("Mybattery");
-
-const WINDOW_SEC = 30;
-const SAMPLING_HZ = 1;
-
-const pushFixed = (arr: DataPoint[], val: number): DataPoint[] => {
-  const next = [...arr.slice(1), { time: 0, lowTmp: val, highTmp: val }];
-  return next.map((p, idx) => ({ ...p, time: idx }));
-};
-
-const makeEmptySeries = (): DataPoint[] =>
-  Array.from({ length: WINDOW_SEC + 1 }, (_, idx) => ({
-    time: idx,
-    lowTmp: 0,
-    highTmp: 0,
-  }));
 
 /** 渲染home組件, 使用widget顯示充電訊息, 用PagerView放不同的圖表
  */
 export default function Index() {
-  // real data
-  const [stats, setStats] = useState<BatteryStats | null>(null);
-  const [currentData, setCurrent] = useState<DataPoint[]>(makeEmptySeries());
-  const [voltageData, setVoltage] = useState<DataPoint[]>(makeEmptySeries());
-  const [powerData, setPower] = useState<DataPoint[]>(makeEmptySeries());
+  const { source } = useSettings(); // local or esp32
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const s = await Battery.getStats();
-        setStats(s);
+  const battery = useBatteryData();
+  const hardware = useHardwareData();
 
-        // const I_mA = Math.abs(s.current_mA);
-        // const V_V = s.voltage_mV / 1000;
-        // const P_W = (I_mA / 1000) * V_V;
-        //
-        // setCurrent((prev) => pushFixed(prev, I_mA));
-        const I_A = Math.abs(s.current_mA) / 1000; // mA → A（正值）
-        const V_V = s.voltage_mV / 1000; // mV → V
-        const P_W = I_A * V_V; // W
+  const labelMap = {
+    0: "正常",
+    1: "線生鏽",
+    2: "變壓器生鏽",
+    3: "手機過熱",
+    4: "線剝落",
+    5: "線彎折",
+  };
 
-        setCurrent((prev) => pushFixed(prev, I_A));
-        setVoltage((prev) => pushFixed(prev, V_V));
-        setPower((prev) => pushFixed(prev, P_W));
-      } catch (e) {
-        console.warn("Battery module error:", e);
-      }
-    };
+  const predicted =
+    source === "local" ? battery.lstmResult : hardware.data?.predicted;
+  const label =
+    predicted !== undefined &&
+    predicted !== null &&
+    labelMap[predicted] !== undefined
+      ? labelMap[predicted]
+      : source === "local"
+      ? "未知"
+      : hardware.data?.label || "未知";
+  const abnormal =
+    predicted !== null && predicted !== undefined && predicted !== 0;
 
-    fetchStats(); // 先抓一次
-    const id = setInterval(fetchStats, 1000 / SAMPLING_HZ);
-    return () => clearInterval(id);
-  }, []);
+  // 統一取得數據
+  const stats = source === "local" ? battery.stats : hardware.data?.stats;
+  const currentList =
+    source === "local" ? battery.currentList : hardware.data?.currentList;
+  const voltageList =
+    source === "local" ? battery.voltageList : hardware.data?.voltageList;
+  const powerList =
+    source === "local" ? battery.powerList : hardware.data?.powerList;
+  const temperatureList =
+    source === "local"
+      ? battery.temperatureList
+      : hardware.data?.temperatureList;
+
+  const error = source === "local" ? battery.error : hardware.error;
+
+  // chart 數據格式
+  const makeSeries = (arr) =>
+    Array.isArray(arr)
+      ? arr.map((val, idx) => ({
+          time: idx,
+          lowTmp: val,
+          highTmp: val,
+        }))
+      : [];
+
+  // 用 context 的資料
+  const currentData = makeSeries(currentList);
+  const voltageData = makeSeries(voltageList);
+  const powerData = makeSeries(powerList);
+
+  const current_A = stats ? Math.abs(stats.current_mA) / 1000 : 0;
+  const voltage_V = stats ? stats.voltage_mV / 1000 : 0;
+  const temperature_C = stats?.temperature_C ?? 0;
+  const power_W = current_A * voltage_V;
 
   const pageRef = useRef<PagerView>(null);
   const position = useSharedValue(0);
@@ -76,21 +89,31 @@ export default function Index() {
     position.value = event.nativeEvent.position + event.nativeEvent.offset;
   };
 
-  /** 從stats得到電流，電壓，溫度
-   */
-  // const current_mA = stats?.current_mA ?? 0;
-  // const voltage_V = stats ? stats.voltage_mV / 1000 : 0;
-  // const temperature_C = stats?.temperature_C ?? 0;
-  // const power_W = (Math.abs(current_mA) * voltage_V) / 1000; // 轉成 W
-
-  const current_A = stats ? Math.abs(stats.current_mA) / 1000 : 0;
-  const voltage_V = stats ? stats.voltage_mV / 1000 : 0;
-  const temperature_C = stats?.temperature_C ?? 0;
-  const power_W = current_A * voltage_V; // W
-
   return (
     <>
       <SafeAreaView style={styles.container}>
+        <View
+          style={{
+            width: "100%",
+            alignItems: "center",
+            marginTop: 6,
+            marginBottom: 4,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "bold",
+              color: abnormal ? "#e53935" : "#1b8f41",
+              backgroundColor: abnormal ? "#ffebee" : "#e8f5e9",
+              borderRadius: 10,
+              paddingHorizontal: 12,
+              paddingVertical: 3,
+            }}
+          >
+            {abnormal ? `異常：${label}` : `狀態：${label}`}
+          </Text>
+        </View>
         <AnimatedPagerView
           style={styles.chartContainer}
           initialPage={0}
