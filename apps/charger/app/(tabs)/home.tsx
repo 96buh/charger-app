@@ -1,7 +1,8 @@
-import { View, StyleSheet, SafeAreaView, Text } from "react-native";
+import { View, StyleSheet, Text } from "react-native";
 import { useState, useRef } from "react";
 import Animated, { useSharedValue } from "react-native-reanimated";
 import PagerView from "react-native-pager-view";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // contexts
 import { useSettings } from "@/contexts/SettingsContext";
@@ -91,18 +92,21 @@ export default function Index() {
 
   return (
     <>
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={{ alignItems: "center", marginVertical: 6 }}>
+          <Text style={{ fontSize: 20, fontWeight: "bold", color: "#5c6bc0" }}>
+            即時訊息顯示
+          </Text>
+        </View>
         <View
           style={{
             width: "100%",
             alignItems: "center",
-            marginTop: 6,
-            marginBottom: 4,
           }}
         >
           <Text
             style={{
-              fontSize: 18,
+              fontSize: 14,
               fontWeight: "bold",
               color: abnormal ? "#e53935" : "#1b8f41",
               backgroundColor: abnormal ? "#ffebee" : "#e8f5e9",

@@ -8,14 +8,8 @@ export default function TabsLayout() {
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: "orange", //標籤顏色
-          headerStyle: {
-            backgroundColor: "#7D7DFF", // background color
-          },
-          headerShadowVisible: false,
-          headerTintColor: "white",
-          tabBarStyle: {
-            backgroundColor: "white",
-          },
+          headerShown: false, // 不顯示 header
+          tabBarStyle: { backgroundColor: "white" },
         }}
       >
         <Tabs.Screen

@@ -98,7 +98,7 @@ export function HardwareDataProvider({
     };
 
     fetchData();
-    timer = setInterval(fetchData, 2000);
+    timer = setInterval(fetchData, 1000);
 
     return () => {
       aborted = true;
