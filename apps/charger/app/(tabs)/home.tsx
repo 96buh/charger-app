@@ -1,5 +1,5 @@
 import { View, StyleSheet, Text } from "react-native";
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import Animated, { useSharedValue } from "react-native-reanimated";
 import PagerView from "react-native-pager-view";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -8,6 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useBatteryData } from "@/contexts/BatteryDataContext";
 import { useHardwareData } from "@/contexts/HardwareContext";
+import { useAlert } from "@/contexts/AlertContext";
 
 // components and utils
 import { SquareWidget } from "@/components/squareWidget";
@@ -24,28 +25,7 @@ export default function Index() {
 
   const battery = useBatteryData();
   const hardware = useHardwareData();
-
-  const labelMap = {
-    0: "正常",
-    1: "線生鏽",
-    2: "變壓器生鏽",
-    3: "手機過熱",
-    4: "線剝落",
-    5: "線彎折",
-  };
-
-  const predicted =
-    source === "local" ? battery.lstmResult : hardware.data?.predicted;
-  const label =
-    predicted !== undefined &&
-    predicted !== null &&
-    labelMap[predicted] !== undefined
-      ? labelMap[predicted]
-      : source === "local"
-      ? "未知"
-      : hardware.data?.label || "未知";
-  const abnormal =
-    predicted !== null && predicted !== undefined && predicted !== 0;
+  const { abnormal, label } = useAlert();
 
   // 統一取得數據
   const stats = source === "local" ? battery.stats : hardware.data?.stats;
@@ -76,19 +56,30 @@ export default function Index() {
   const currentData = makeSeries(currentList);
   const voltageData = makeSeries(voltageList);
   const powerData = makeSeries(powerList);
+  const temperatureData = makeSeries(temperatureList);
 
   const current_A = stats ? Math.abs(stats.current_mA) / 1000 : 0;
   const voltage_V = stats ? stats.voltage_mV / 1000 : 0;
   const temperature_C = stats?.temperature_C ?? 0;
-  const power_W = current_A * voltage_V;
+  // const power_W = current_A * voltage_V;
+  const power_W =
+    powerList && powerList.length > 0 ? powerList[powerList.length - 1] : 0;
 
   const pageRef = useRef<PagerView>(null);
   const position = useSharedValue(0);
-  const totalPages = 3;
+  const totalPages = 4;
 
   const onPageScroll = (event) => {
     position.value = event.nativeEvent.position + event.nativeEvent.offset;
   };
+
+  const isUncharged = label === "未充電";
+  const statusColor = isUncharged
+    ? "#757575"
+    : abnormal
+    ? "#e53935"
+    : "#1b8f41";
+  const statusBg = isUncharged ? "#f5f5f5" : abnormal ? "#ffebee" : "#e8f5e9";
 
   return (
     <>
@@ -98,18 +89,13 @@ export default function Index() {
             即時訊息顯示
           </Text>
         </View>
-        <View
-          style={{
-            width: "100%",
-            alignItems: "center",
-          }}
-        >
+        <View style={{ width: "100%", alignItems: "center" }}>
           <Text
             style={{
               fontSize: 14,
               fontWeight: "bold",
-              color: abnormal ? "#e53935" : "#1b8f41",
-              backgroundColor: abnormal ? "#ffebee" : "#e8f5e9",
+              color: statusColor,
+              backgroundColor: statusBg,
               borderRadius: 10,
               paddingHorizontal: 12,
               paddingVertical: 3,
@@ -133,13 +119,16 @@ export default function Index() {
           <View key="3" style={{ flex: 1 }}>
             <LineChart data={powerData} lineColor="darkblue" />
           </View>
+          <View key="4" style={{ flex: 1 }}>
+            <LineChart data={temperatureData} lineColor="orange" />
+          </View>
         </AnimatedPagerView>
         {/* Pagination indicator */}
         <PaginationIndicator totalPages={totalPages} position={position} />
         <View style={styles.widgetsContainer}>
           <SquareWidget
             name="功率"
-            value={power_W}
+            value={power_W.toFixed(2)}
             icon="power-plug-outline"
             unit="W"
           />

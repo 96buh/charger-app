@@ -1,125 +1,78 @@
-import { StyleSheet, Text, View, ScrollView } from "react-native";
-import { useSettings } from "@/contexts/SettingsContext";
-import { useBatteryData } from "@/contexts/BatteryDataContext";
-import { useHardwareData } from "@/contexts/HardwareContext";
+import React, { useMemo, useState } from "react";
+import { Button, View, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function ErrorPage() {
-  const { source } = useSettings();
+import {
+  VictoryAxis,
+  VictoryBar,
+  VictoryChart,
+  VictoryTheme,
+} from "victory-native";
 
-  const labelMap = {
-    0: "正常",
-    1: "線生鏽",
-    2: "變壓器生鏽",
-    3: "手機過熱",
-    4: "線剝落",
-    5: "線彎折",
-  };
+import { useChargeHistory } from "@/contexts/ChargeHistoryContext";
 
-  // 拿本機或esp32的資料
-  const battery = useBatteryData();
-  const { data: hardwareData, error } = useHardwareData();
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-  // 統一取值
-  const isLocal = source === "local";
-  const stats = isLocal ? battery.stats : hardwareData?.stats;
-  const currentList = isLocal ? battery.currentList : hardwareData?.currentList;
-  const voltageList = isLocal ? battery.voltageList : hardwareData?.voltageList;
-  const powerList = isLocal ? battery.powerList : hardwareData?.powerList;
-  const temperatureList = isLocal
-    ? battery.temperatureList
-    : hardwareData?.temperatureList;
+export default function HistoryScreen() {
+  const { history } = useChargeHistory();
+  const [range, setRange] = useState<7 | 30>(7);
 
-  // 統一分類
-  let predicted = isLocal ? battery.lstmResult : hardwareData?.predicted;
-  let label =
-    predicted !== undefined && labelMap[predicted] !== undefined
-      ? labelMap[predicted]
-      : isLocal
-      ? "未知"
-      : hardwareData?.label || "未知";
+  const chartData = useMemo(() => {
+    const cutoff = Date.now() - range * DAY_MS;
+    const totals: Record<string, number> = {};
+    history.forEach((s) => {
+      const date = new Date(s.timestamp);
+      if (date.getTime() >= cutoff) {
+        const key = date.toISOString().split("T")[0];
+        totals[key] = (totals[key] || 0) + s.percent;
+      }
+    });
 
-  // 顯示異常狀態
-  const abnormal =
-    predicted !== null && predicted !== undefined && predicted !== 0;
+    const days: string[] = [];
+    for (let i = range - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split("T")[0];
+      days.push(key);
+    }
+
+    return days.map((d) => ({ x: d.slice(5), y: totals[d] || 0 }));
+  }, [history, range]);
 
   return (
-    <SafeAreaView>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text
-          style={{
-            color: abnormal ? "red" : "green",
-            fontWeight: "bold",
-            fontSize: 20,
-            marginBottom: 8,
-          }}
+    <SafeAreaView style={{ flex: 1, padding: 16 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "center",
+          marginBottom: 16,
+        }}
+      >
+        <Button
+          title="7天"
+          onPress={() => setRange(7)}
+          disabled={range === 7}
+        />
+        <View style={{ width: 8 }} />
+        <Button
+          title="30天"
+          onPress={() => setRange(30)}
+          disabled={range === 30}
+        />
+      </View>
+      {history.length === 0 ? (
+        <Text style={{ textAlign: "center" }}>沒有充電記錄</Text>
+      ) : (
+        <VictoryChart
+          domainPadding={{ x: 20 }}
+          height={300}
+          theme={VictoryTheme.material}
         >
-          {abnormal ? `異常：${label}` : `狀態：${label}`}
-        </Text>
-        <Text>
-          最新電流：{currentList?.[currentList.length - 1]?.toFixed(3) ?? "無"}{" "}
-          A
-        </Text>
-        <Text>
-          最新電壓：{voltageList?.[voltageList.length - 1]?.toFixed(2) ?? "無"}{" "}
-          V
-        </Text>
-        <Text>
-          最新功率：{powerList?.[powerList.length - 1]?.toFixed(2) ?? "無"} W
-        </Text>
-        <Text>
-          最新溫度：
-          {temperatureList?.[temperatureList.length - 1]?.toFixed(1) ?? "無"} °C
-        </Text>
-
-        <View style={{ gap: 8, padding: 8 }}>
-          <Text style={{ fontWeight: "bold" }}>最近10秒數據：</Text>
-          {[
-            { label: "電流", data: currentList?.slice(-10) ?? [], digits: 2 },
-            { label: "電壓", data: voltageList?.slice(-10) ?? [], digits: 2 },
-            { label: "功率", data: powerList?.slice(-10) ?? [], digits: 2 },
-            {
-              label: "溫度",
-              data: temperatureList?.slice(-10) ?? [],
-              digits: 1,
-            },
-          ].map((row) => (
-            <View
-              key={row.label}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: 4,
-                flexWrap: "wrap",
-              }}
-            >
-              <Text style={{ width: 40, fontWeight: "bold", fontSize: 16 }}>
-                {row.label}
-              </Text>
-              {row.data.map((v, i) => (
-                <View
-                  key={i}
-                  style={{
-                    width: 38,
-                    alignItems: "center",
-                    marginHorizontal: 2,
-                  }}
-                >
-                  <Text style={{ fontSize: 15 }}>{v.toFixed(row.digits)}</Text>
-                </View>
-              ))}
-            </View>
-          ))}
-        </View>
-        {/* 如果有錯誤提示 */}
-        {error && <Text style={{ color: "red" }}>{error}</Text>}
-      </ScrollView>
+          <VictoryAxis tickFormat={(t) => t} />
+          <VictoryAxis dependentAxis tickFormat={(t) => `${t}%`} />
+          <VictoryBar data={chartData} style={{ data: { fill: "#4f46e5" } }} />
+        </VictoryChart>
+      )}
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-  },
-});

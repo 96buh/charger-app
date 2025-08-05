@@ -1,5 +1,14 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
 import { useSettings } from "@/contexts/SettingsContext";
+import * as Battery from "expo-battery";
+
+const WINDOW_SEC = 30;
 
 type HardwareData = {
   stats: {
@@ -19,6 +28,7 @@ type HardwareData = {
 type ContextType = {
   data: HardwareData;
   error: string | null;
+  isCharging: boolean | null; // ← 新增，供頁面使用
 };
 
 const defaultData: HardwareData = {
@@ -35,16 +45,53 @@ const defaultData: HardwareData = {
 const DataContext = createContext<ContextType>({
   data: defaultData,
   error: null,
+  isCharging: null,
 });
 
-export function HardwareDataProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function HardwareDataProvider({ children }) {
   const { esp32Ip, esp32Port, esp32Path } = useSettings();
-  const [data, setData] = useState<HardwareData>(defaultData);
   const [error, setError] = useState<string | null>(null);
+
+  // 充電狀態 (本 context 自己監控，不相依 AlertContext)
+  const [isCharging, setIsCharging] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const subscription = Battery.addBatteryStateListener(({ batteryState }) => {
+      setIsCharging(
+        batteryState === Battery.BatteryState.CHARGING ||
+          batteryState === Battery.BatteryState.FULL
+      );
+    });
+
+    Battery.getBatteryStateAsync().then((batteryState) => {
+      setIsCharging(
+        batteryState === Battery.BatteryState.CHARGING ||
+          batteryState === Battery.BatteryState.FULL
+      );
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  // 用ref存最近30筆資料
+  const currentRef = useRef<number[]>([]);
+  const voltageRef = useRef<number[]>([]);
+  const powerRef = useRef<number[]>([]);
+  const temperatureRef = useRef<number[]>([]);
+  const [data, setData] = useState<HardwareData>(defaultData);
+
+  // ★★★ 充電狀態變化時清空資料 ★★★
+  const prevCharging = useRef(isCharging);
+  useEffect(() => {
+    // 若剛剛在充電，現在沒充電，清空所有list
+    if (prevCharging.current && !isCharging) {
+      currentRef.current = [];
+      voltageRef.current = [];
+      powerRef.current = [];
+      temperatureRef.current = [];
+    }
+    prevCharging.current = isCharging;
+  }, [isCharging]);
 
   useEffect(() => {
     if (!esp32Ip) return;
@@ -64,11 +111,29 @@ export function HardwareDataProvider({
         } catch {
           json = await res.text();
         }
-
-        // --- 資料格式 mapping ---
         let sequence = Array.isArray(json.sequence) ? json.sequence : [];
 
-        // stats 取最後一筆（如無就 null）
+        // 取出新的一批
+        const newCurrent = sequence.map((s) => s.current ?? 0);
+        const newVoltage = sequence.map((s) => s.voltage ?? 0);
+        const newPower = sequence.map((s) => s.power ?? 0);
+        const newTemp = sequence.map((s) => s.temp_C ?? 0);
+
+        // 更新ref，保留最近WINDOW_SEC筆
+        currentRef.current = [...currentRef.current, ...newCurrent].slice(
+          -WINDOW_SEC
+        );
+        voltageRef.current = [...voltageRef.current, ...newVoltage].slice(
+          -WINDOW_SEC
+        );
+        powerRef.current = [...powerRef.current, ...newPower].slice(
+          -WINDOW_SEC
+        );
+        temperatureRef.current = [...temperatureRef.current, ...newTemp].slice(
+          -WINDOW_SEC
+        );
+
+        // stats 取最後一筆（最新）
         let last =
           sequence.length > 0 ? sequence[sequence.length - 1] : undefined;
 
@@ -80,10 +145,10 @@ export function HardwareDataProvider({
                 temperature_C: last.temp_C ?? 0,
               }
             : null,
-          currentList: sequence.map((s) => s.current ?? 0),
-          voltageList: sequence.map((s) => s.voltage ?? 0),
-          powerList: sequence.map((s) => s.power ?? 0),
-          temperatureList: sequence.map((s) => s.temp_C ?? 0),
+          currentList: [...currentRef.current],
+          voltageList: [...voltageRef.current],
+          powerList: [...powerRef.current],
+          temperatureList: [...temperatureRef.current],
           label: json.label,
           predicted: json.predicted,
           timestamp: json.timestamp,
@@ -94,20 +159,31 @@ export function HardwareDataProvider({
       } catch (err: any) {
         if (!aborted) setError("連線失敗：" + (err.message || err.toString()));
         if (!aborted) setData(defaultData);
+
+        // reset window if失敗
+        currentRef.current = [];
+        voltageRef.current = [];
+        powerRef.current = [];
+        temperatureRef.current = [];
       }
     };
 
     fetchData();
-    timer = setInterval(fetchData, 1000);
+    timer = setInterval(fetchData, 10000);
 
     return () => {
       aborted = true;
       clearInterval(timer);
+      // 你也可以清空ref
+      currentRef.current = [];
+      voltageRef.current = [];
+      powerRef.current = [];
+      temperatureRef.current = [];
     };
   }, [esp32Ip, esp32Port, esp32Path]);
 
   return (
-    <DataContext.Provider value={{ data, error }}>
+    <DataContext.Provider value={{ data, error, isCharging }}>
       {children}
     </DataContext.Provider>
   );
