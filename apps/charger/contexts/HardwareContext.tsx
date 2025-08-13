@@ -131,8 +131,12 @@ export function HardwareDataProvider({ children }) {
       const url = `http://${esp32Ip.trim()}:${esp32Port || 8080}${
         esp32Path.startsWith("/") ? esp32Path : "/" + esp32Path
       }`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
       try {
-        const res = await fetch(url, { timeout: 6000 });
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
         let json: any;
         try {
           json = await res.json();
@@ -185,8 +189,15 @@ export function HardwareDataProvider({ children }) {
         if (!aborted) setData(mapped);
         if (res.status >= 400 && !aborted) setError("伺服器錯誤或路徑不存在");
       } catch (err: any) {
-        if (!aborted) setError("連線失敗：" + (err.message || err.toString()));
-        if (!aborted) setData(defaultData);
+        clearTimeout(timeoutId);
+        if (!aborted) {
+          if (err.name === "AbortError") {
+            setError("連線逾時");
+          } else {
+            setError("連線失敗：" + (err.message || err.toString()));
+          }
+          setData(defaultData);
+        }
 
         // reset window if失敗
         currentRef.current = [];

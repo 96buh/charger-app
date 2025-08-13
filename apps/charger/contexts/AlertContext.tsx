@@ -90,6 +90,11 @@ export function AlertProvider({ children }) {
         icon: "auto",
         duration: 5000,
       });
+      addLog({
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        reason: `變壓器溫度超過${highestReached}度`,
+      });
       speakAlert(`變壓器溫度超過${highestReached}度`);
       lastAlertedTemp.current = highestReached;
     }

@@ -46,7 +46,6 @@ export default function HistoryScreen() {
           accessibilityRole="button"
           style={[styles.rangeOption, range === 7 && styles.rangeOptionActive]}
           onPress={() => setRange(7)}
-          onPress={() => setRange(7)}
         >
           <Text
             style={[styles.rangeText, range === 7 && styles.rangeTextActive]}

@@ -109,16 +109,36 @@ export default function Index() {
           ref={pageRef}
         >
           <View key="1" style={{ flex: 1 }}>
-            <LineChart data={currentData} lineColor="red" />
+            <LineChart
+              data={currentData}
+              lineColor="red"
+              label="電流 (A)"
+              yDomain={[0, 2]}
+            />
           </View>
           <View key="2" style={{ flex: 1 }}>
-            <LineChart data={voltageData} lineColor="darkgreen" />
+            <LineChart
+              data={voltageData}
+              lineColor="darkgreen"
+              label="電壓 (V)"
+              yDomain={[0, 5]}
+            />
           </View>
           <View key="3" style={{ flex: 1 }}>
-            <LineChart data={powerData} lineColor="darkblue" />
+            <LineChart
+              data={powerData}
+              lineColor="darkblue"
+              label="功率 (W)"
+              yDomain={[0, 10]}
+            />
           </View>
           <View key="4" style={{ flex: 1 }}>
-            <LineChart data={temperatureData} lineColor="orange" />
+            <LineChart
+              data={temperatureData}
+              lineColor="orange"
+              label="溫度 (°C)"
+              yDomain={[0, 60]}
+            />
           </View>
         </AnimatedPagerView>
         {/* Pagination indicator */}

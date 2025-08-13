@@ -60,6 +60,6 @@ const styles = StyleSheet.create({
   },
   content: {
     fontSize: 17,
-    fontWeight: "semibold",
+    fontWeight: "normal",
   },
 });
