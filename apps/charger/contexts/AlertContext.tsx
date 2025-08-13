@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, createContext, useContext } from "react";
 import * as Battery from "expo-battery";
 import { useAudioPlayer } from "expo-audio";
 import * as Speech from "expo-speech";
+import { useErrorLog } from "@/contexts/ErrorLogContext";
 
 const ALERT_SOUND = require("@/assets/sounds/alert.mp3");
 
@@ -16,6 +17,7 @@ export function AlertProvider({ children }) {
   const battery = useBatteryData();
   const hardware = useHardwareData();
   const player = useAudioPlayer(ALERT_SOUND);
+  const { addLog } = useErrorLog();
 
   const [isCharging, setIsCharging] = useState(null);
   const [abnormal, setAbnormal] = useState(false);
@@ -164,6 +166,11 @@ export function AlertProvider({ children }) {
         type: "danger",
         icon: "auto",
         duration: 5000,
+      });
+      addLog({
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        reason: labelNow,
       });
       player.play();
       if (timeoutRef.current) clearTimeout(timeoutRef.current);

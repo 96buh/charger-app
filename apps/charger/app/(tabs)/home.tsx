@@ -40,8 +40,6 @@ export default function Index() {
       ? battery.temperatureList
       : hardware.data?.temperatureList;
 
-  const error = source === "local" ? battery.error : hardware.error;
-
   // chart 數據格式
   const makeSeries = (arr) =>
     Array.isArray(arr)
