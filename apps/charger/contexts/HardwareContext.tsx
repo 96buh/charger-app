@@ -6,6 +6,10 @@ import React, {
   useRef,
 } from "react";
 import { useSettings } from "@/contexts/SettingsContext";
+import {
+  useChargeHistory,
+  type ChargeSession,
+} from "@/contexts/ChargeHistoryContext";
 import * as Battery from "expo-battery";
 
 const WINDOW_SEC = 30;
@@ -80,18 +84,42 @@ export function HardwareDataProvider({ children }) {
   const temperatureRef = useRef<number[]>([]);
   const [data, setData] = useState<HardwareData>(defaultData);
 
+  const { addSession } = useChargeHistory();
+  const chargeStartLevel = useRef<number | null>(null);
+
   // ★★★ 充電狀態變化時清空資料 ★★★
   const prevCharging = useRef(isCharging);
   useEffect(() => {
-    // 若剛剛在充電，現在沒充電，清空所有list
+    if (isCharging && !prevCharging.current) {
+      // 開始充電時記錄電量
+      Battery.getBatteryLevelAsync().then((level) => {
+        chargeStartLevel.current = level;
+      });
+    }
     if (prevCharging.current && !isCharging) {
+      // 結束充電時計算充電百分比並記錄
+      Battery.getBatteryLevelAsync().then((level) => {
+        const start = chargeStartLevel.current;
+        if (start != null && level != null) {
+          const diff = (level - start) * 100;
+          if (diff > 0) {
+            const session: ChargeSession = {
+              id: Date.now().toString(),
+              timestamp: new Date().toISOString(),
+              percent: Number(diff.toFixed(2)),
+            };
+            addSession(session);
+          }
+        }
+      });
+
       currentRef.current = [];
       voltageRef.current = [];
       powerRef.current = [];
       temperatureRef.current = [];
     }
     prevCharging.current = isCharging;
-  }, [isCharging]);
+  }, [isCharging, addSession]);
 
   useEffect(() => {
     if (!esp32Ip) return;

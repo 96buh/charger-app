@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Button, View, Text } from "react-native";
+import { Button, View, Text, Pressable, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -14,7 +14,7 @@ import { useChargeHistory } from "@/contexts/ChargeHistoryContext";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export default function HistoryScreen() {
-  const { history } = useChargeHistory();
+  const { history, clearHistory } = useChargeHistory();
   const [range, setRange] = useState<7 | 30>(7);
 
   const chartData = useMemo(() => {
@@ -41,23 +41,36 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, padding: 16 }}>
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "center",
-          marginBottom: 16,
-        }}
-      >
-        <Button
-          title="7天"
+      <View style={styles.rangePicker}>
+        <Pressable
+          accessibilityRole="button"
+          style={[styles.rangeOption, range === 7 && styles.rangeOptionActive]}
           onPress={() => setRange(7)}
-          disabled={range === 7}
-        />
-        <View style={{ width: 8 }} />
-        <Button
-          title="30天"
+          onPress={() => setRange(7)}
+        >
+          <Text
+            style={[styles.rangeText, range === 7 && styles.rangeTextActive]}
+          >
+            7天
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          style={[styles.rangeOption, range === 30 && styles.rangeOptionActive]}
           onPress={() => setRange(30)}
-          disabled={range === 30}
+        >
+          <Text
+            style={[styles.rangeText, range === 30 && styles.rangeTextActive]}
+          >
+            30天
+          </Text>
+        </Pressable>
+      </View>
+      <View style={{ marginBottom: 16, alignItems: "center" }}>
+        <Button
+          title="清除紀錄"
+          onPress={clearHistory}
+          disabled={history.length === 0}
         />
       </View>
       {history.length === 0 ? (
@@ -76,3 +89,30 @@ export default function HistoryScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  rangePicker: {
+    flexDirection: "row",
+    alignSelf: "center",
+    borderWidth: 1,
+    borderColor: "#4f46e5",
+    borderRadius: 8,
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  rangeOption: {
+    flex: 1,
+    paddingVertical: 8,
+    backgroundColor: "#fff",
+  },
+  rangeOptionActive: {
+    backgroundColor: "#4f46e5",
+  },
+  rangeText: {
+    textAlign: "center",
+    color: "#4f46e5",
+  },
+  rangeTextActive: {
+    color: "#fff",
+  },
+});

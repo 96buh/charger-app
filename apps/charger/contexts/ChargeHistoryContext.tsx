@@ -19,6 +19,7 @@ export interface ChargeSession {
 interface ChargeHistoryContextProps {
   history: ChargeSession[];
   addSession: (session: ChargeSession) => void;
+  clearHistory: () => void;
 }
 
 const STORAGE_KEY = "charge_history";
@@ -51,17 +52,32 @@ export const ChargeHistoryProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Persist whenever history changes
   useEffect(() => {
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(history)).catch((e) =>
-      console.warn("Failed to save charge history", e)
-    );
+    if (history.length > 0) {
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(history)).catch((e) =>
+        console.warn("Failed to save charge history", e)
+      );
+    } else {
+      AsyncStorage.removeItem(STORAGE_KEY).catch((e) =>
+        console.warn("Failed to clear charge history", e)
+      );
+    }
   }, [history]);
 
   const addSession = useCallback((session: ChargeSession) => {
     setHistory((prev) => [...prev, session]);
   }, []);
 
+  const clearHistory = useCallback(() => {
+    setHistory([]);
+    AsyncStorage.removeItem(STORAGE_KEY).catch((e) =>
+      console.warn("Failed to clear charge history", e)
+    );
+  }, []);
+
   return (
-    <ChargeHistoryContext.Provider value={{ history, addSession }}>
+    <ChargeHistoryContext.Provider
+      value={{ history, addSession, clearHistory }}
+    >
       {children}
     </ChargeHistoryContext.Provider>
   );

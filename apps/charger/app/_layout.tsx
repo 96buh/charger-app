@@ -12,9 +12,9 @@ export default function RootLayout() {
   return (
     <>
       <SettingsProvider>
-        <HardwareDataProvider>
-          <BatteryDataProvider>
-            <ChargeHistoryProvider>
+        <ChargeHistoryProvider>
+          <HardwareDataProvider>
+            <BatteryDataProvider>
               <AlertProvider>
                 <FlashMessage
                   position="top"
@@ -30,9 +30,9 @@ export default function RootLayout() {
                   <Stack.Screen name="+not-found" options={{}} />
                 </Stack>
               </AlertProvider>
-            </ChargeHistoryProvider>
-          </BatteryDataProvider>
-        </HardwareDataProvider>
+            </BatteryDataProvider>
+          </HardwareDataProvider>
+        </ChargeHistoryProvider>
       </SettingsProvider>
     </>
   );
