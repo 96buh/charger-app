@@ -9,6 +9,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { useBatteryData } from "@/contexts/BatteryDataContext";
 import { useHardwareData } from "@/contexts/HardwareContext";
 import { useAlert } from "@/contexts/AlertContext";
+import i18n from "@/utils/i18n";
 
 // components and utils
 import { SquareWidget } from "@/components/squareWidget";
@@ -31,11 +32,27 @@ const THEME = {
 
 /** 渲染home組件, 使用widget顯示充電訊息, 用PagerView放不同的圖表 */
 export default function Index() {
-  const { source } = useSettings(); // local or esp32
+  const { source, language } = useSettings(); // local or esp32
+  i18n.locale = language;
 
   const battery = useBatteryData();
   const hardware = useHardwareData();
   const { abnormal, label } = useAlert();
+
+  const labelKeyMap: Record<string, string> = {
+    未充電: "notCharging",
+    正常: "normal",
+    未知: "unknown",
+    充電線生鏽: "rustedCable",
+    變壓器生鏽: "rustedTransformer",
+    "Not Charging": "notCharging",
+    Normal: "normal",
+    Unknown: "unknown",
+    "Cable Rust": "rustedCable",
+    "Transformer Rust": "rustedTransformer",
+  };
+  const labelKey = labelKeyMap[label];
+  const displayLabel = labelKey ? i18n.t(labelKey) : label;
 
   // 統一取得數據
   const stats = source === "local" ? battery.stats : hardware.data?.stats;
@@ -80,7 +97,7 @@ export default function Index() {
     position.value = event.nativeEvent.position + event.nativeEvent.offset;
   };
 
-  const isUncharged = label === "未充電";
+  const isUncharged = labelKey === "notCharging";
   const statusColor = isUncharged
     ? THEME.muted
     : abnormal
@@ -96,7 +113,7 @@ export default function Index() {
     <>
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.headerWrap}>
-          <Text style={styles.headerTitle}>即時訊息顯示</Text>
+          <Text style={styles.headerTitle}>{i18n.t("realtimeDisplay")}</Text>
         </View>
 
         <View style={styles.statusRow}>
@@ -106,7 +123,9 @@ export default function Index() {
               { color: statusColor, backgroundColor: statusBg },
             ]}
           >
-            {abnormal ? `異常：${label}` : `狀態：${label}`}
+            {abnormal
+              ? i18n.t("abnormal", { label: displayLabel })
+              : i18n.t("status", { label: displayLabel })}
           </Text>
         </View>
 
@@ -120,7 +139,7 @@ export default function Index() {
             <LineChart
               data={currentData}
               lineColor="#ef4444"
-              label="電流 (A)"
+              label={i18n.t("currentLabel")}
               yDomain={[0, 2]}
             />
           </View>
@@ -128,7 +147,7 @@ export default function Index() {
             <LineChart
               data={voltageData}
               lineColor="#16a34a"
-              label="電壓 (V)"
+              label={i18n.t("voltageLabel")}
               yDomain={[0, 5]}
             />
           </View>
@@ -136,7 +155,7 @@ export default function Index() {
             <LineChart
               data={powerData}
               lineColor="#1d4ed8"
-              label="功率 (W)"
+              label={i18n.t("powerLabel")}
               yDomain={[0, 10]}
             />
           </View>
@@ -144,7 +163,7 @@ export default function Index() {
             <LineChart
               data={temperatureData}
               lineColor="#f59e0b"
-              label="溫度 (°C)"
+              label={i18n.t("temperatureLabel")}
               yDomain={[0, 60]}
             />
           </View>
@@ -154,25 +173,25 @@ export default function Index() {
 
         <View style={styles.widgetsContainer}>
           <SquareWidget
-            name="功率"
+            name={i18n.t("power")}
             value={power_W.toFixed(2)}
             icon="power-plug-outline"
             unit="W"
           />
           <SquareWidget
-            name="電流"
+            name={i18n.t("current")}
             value={current_A.toFixed(3)}
             icon="current-ac"
             unit="A"
           />
           <SquareWidget
-            name="電壓"
+            name={i18n.t("voltage")}
             value={voltage_V.toFixed(2)}
             icon="lightning-bolt"
             unit="V"
           />
           <SquareWidget
-            name="溫度"
+            name={i18n.t("temperature")}
             value={temperature_C.toFixed(1)}
             icon="thermometer"
             unit="°C"

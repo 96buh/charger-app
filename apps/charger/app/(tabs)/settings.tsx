@@ -7,11 +7,15 @@ import {
   TouchableOpacity,
 } from "react-native";
 import Slider from "@react-native-community/slider";
+import { Picker } from "@react-native-picker/picker";
 import { useSettings } from "@/contexts/SettingsContext";
 import { SafeAreaView } from "react-native-safe-area-context";
+import i18n from "@/utils/i18n";
 
 export default function SettingsPage() {
   const {
+    language,
+    setLanguage,
     source,
     setSource,
     esp32Ip,
@@ -24,9 +28,11 @@ export default function SettingsPage() {
     setTempThreshold,
   } = useSettings();
 
+  i18n.locale = language;
+
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.header}>資料來源</Text>
+      <Text style={styles.header}>{i18n.t("dataSource")}</Text>
       <View style={styles.switchRow}>
         <TouchableOpacity
           style={[
@@ -41,7 +47,7 @@ export default function SettingsPage() {
               source === "local" && styles.switchTextActive,
             ]}
           >
-            本機
+            {i18n.t("local")}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -57,35 +63,35 @@ export default function SettingsPage() {
               source === "esp32" && styles.switchTextActive,
             ]}
           >
-            ESP32
+            {i18n.t("esp32")}
           </Text>
         </TouchableOpacity>
       </View>
 
       {source === "esp32" && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>ESP32 伺服器設定</Text>
-          <Text style={styles.label}>IP 地址</Text>
+          <Text style={styles.sectionTitle}>{i18n.t("esp32Settings")}</Text>
+          <Text style={styles.label}>{i18n.t("ipAddress")}</Text>
           <TextInput
             value={esp32Ip}
             onChangeText={setEsp32Ip}
-            placeholder="例如 192.168.1.100"
+            placeholder={i18n.t("exampleIp")}
             keyboardType="numeric"
             style={styles.input}
             returnKeyType="next"
           />
 
-          <Text style={styles.label}>Port</Text>
+          <Text style={styles.label}>{i18n.t("port")}</Text>
           <TextInput
             value={esp32Port}
             onChangeText={setEsp32Port}
-            placeholder="預設 8080"
+            placeholder={i18n.t("defaultPort")}
             keyboardType="numeric"
             style={styles.input}
             returnKeyType="next"
           />
 
-          <Text style={styles.label}>API 路徑</Text>
+          <Text style={styles.label}>{i18n.t("apiPath")}</Text>
           <TextInput
             value={esp32Path}
             onChangeText={setEsp32Path}
@@ -98,7 +104,7 @@ export default function SettingsPage() {
       )}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>
-          溫度異常通知閾值 ({tempThreshold}°C)
+          {i18n.t("tempThreshold", { tempThreshold })}
         </Text>
         <Slider
           minimumValue={30}
@@ -107,6 +113,13 @@ export default function SettingsPage() {
           value={tempThreshold}
           onValueChange={setTempThreshold}
         />
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{i18n.t("language")}</Text>
+        <Picker selectedValue={language} onValueChange={setLanguage}>
+          <Picker.Item label={i18n.t("english") as string} value="en" />
+          <Picker.Item label={i18n.t("chinese") as string} value="zh" />
+        </Picker>
       </View>
     </SafeAreaView>
   );

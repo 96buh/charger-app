@@ -7,13 +7,15 @@ import * as Battery from "expo-battery";
 import { useAudioPlayer } from "expo-audio";
 import * as Speech from "expo-speech";
 import { useErrorLog } from "@/contexts/ErrorLogContext";
+import i18n from "@/utils/i18n";
 
 const ALERT_SOUND = require("@/assets/sounds/alert.mp3");
 
 const AlertContext = createContext();
 
 export function AlertProvider({ children }) {
-  const { source, tempThreshold } = useSettings();
+  const { source, tempThreshold, language } = useSettings();
+  i18n.locale = language;
   const battery = useBatteryData();
   const hardware = useHardwareData();
   const player = useAudioPlayer(ALERT_SOUND);
@@ -47,10 +49,10 @@ export function AlertProvider({ children }) {
   }, []);
 
   // ========= 播報異常語音 ========
-  const speakAlert = (text) => {
+  const speakAlert = (text: string) => {
     Speech.stop();
-    Speech.speak("異常：" + text, {
-      language: "zh-TW",
+    Speech.speak(i18n.t("abnormal", { label: text }), {
+      language: language === "zh" ? "zh-TW" : "en-US",
       rate: 1.0,
       pitch: 1.1,
     });
@@ -72,8 +74,9 @@ export function AlertProvider({ children }) {
     if (temp !== null && tempThreshold !== null) {
       if (temp >= tempThreshold) {
         if (!lastAlertedTemp.current) {
+          const tempText = i18n.t("tempOverThreshold", { temp: tempThreshold });
           showMessage({
-            message: `充電異常：變壓器溫度超過${tempThreshold}度`,
+            message: i18n.t("abnormal", { label: tempText }),
             type: "danger",
             icon: "auto",
             duration: 5000,
@@ -81,10 +84,10 @@ export function AlertProvider({ children }) {
           addLog({
             id: Date.now().toString(),
             timestamp: new Date().toISOString(),
-            reason: `變壓器溫度超過${tempThreshold}度`,
-            type: "溫度異常",
+            reason: tempText,
+            type: i18n.t("temperatureAbnormal"),
           });
-          speakAlert(`變壓器溫度超過${tempThreshold}度`);
+          speakAlert(tempText);
           lastAlertedTemp.current = true;
         }
       } else {
@@ -103,14 +106,14 @@ export function AlertProvider({ children }) {
 
     let predicted =
       source === "local" ? battery.lstmResult : hardware.data?.predicted;
-    let labelMap = {
+    const labelMap = {
       0: "正常",
       1: "充電線生鏽",
       2: "變壓器生鏽",
       // 3: "變壓器過熱",
       // 4: "線剝落",
       // 5: "線彎折",
-    };
+    } as Record<number, string>;
 
     let abnormalNow = false;
     let labelNow = "";
@@ -147,6 +150,21 @@ export function AlertProvider({ children }) {
           : hardware.data?.label || "未知";
     }
 
+    const labelKeyMap: Record<string, string> = {
+      未充電: "notCharging",
+      正常: "normal",
+      未知: "unknown",
+      充電線生鏽: "rustedCable",
+      變壓器生鏽: "rustedTransformer",
+      "Not Charging": "notCharging",
+      Normal: "normal",
+      Unknown: "unknown",
+      "Cable Rust": "rustedCable",
+      "Transformer Rust": "rustedTransformer",
+    };
+    const labelKey = labelKeyMap[labelNow];
+    const displayLabel = labelKey ? i18n.t(labelKey) : labelNow;
+
     setAbnormal(abnormalNow);
     setLabel(labelNow);
 
@@ -155,7 +173,7 @@ export function AlertProvider({ children }) {
       (!lastAbnormal.current || labelNow !== lastLabel.current)
     ) {
       showMessage({
-        message: `異常：${labelNow}`,
+        message: i18n.t("abnormal", { label: displayLabel }),
         type: "danger",
         icon: "auto",
         duration: 5000,
@@ -163,15 +181,15 @@ export function AlertProvider({ children }) {
       addLog({
         id: Date.now().toString(),
         timestamp: new Date().toISOString(),
-        reason: labelNow,
-        type: labelNow,
+        reason: displayLabel,
+        type: displayLabel,
       });
       player.play();
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
         player.pause();
         player.seekTo(0);
-        speakAlert(labelNow);
+        speakAlert(displayLabel);
       }, 1000);
     }
 
