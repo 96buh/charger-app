@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from "react-native";
+import Slider from "@react-native-community/slider";
 import { useSettings } from "@/contexts/SettingsContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -19,6 +20,8 @@ export default function SettingsPage() {
     setEsp32Port,
     esp32Path,
     setEsp32Path,
+    tempThreshold,
+    setTempThreshold,
   } = useSettings();
 
   return (
@@ -93,6 +96,18 @@ export default function SettingsPage() {
           />
         </View>
       )}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>
+          溫度異常通知閾值 ({tempThreshold}°C)
+        </Text>
+        <Slider
+          minimumValue={30}
+          maximumValue={70}
+          step={1}
+          value={tempThreshold}
+          onValueChange={setTempThreshold}
+        />
+      </View>
     </SafeAreaView>
   );
 }
