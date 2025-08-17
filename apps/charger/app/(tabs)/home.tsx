@@ -15,11 +15,21 @@ import { SquareWidget } from "@/components/squareWidget";
 import { LineChart } from "@/components/LineChart";
 import { PaginationIndicator } from "@/components/PaginationDots";
 
-// constants
 const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
 
-/** 渲染home組件, 使用widget顯示充電訊息, 用PagerView放不同的圖表
- */
+const THEME = {
+  primary: "#4f46e5",
+  text: "#111827",
+  muted: "#6b7280",
+  success: "#1b8f41",
+  danger: "#e53935",
+  warningBg: "#ffebee",
+  successBg: "#e8f5e9",
+  neutralBg: "#f5f5f5",
+  radius: 12,
+};
+
+/** 渲染home組件, 使用widget顯示充電訊息, 用PagerView放不同的圖表 */
 export default function Index() {
   const { source } = useSettings(); // local or esp32
 
@@ -41,7 +51,7 @@ export default function Index() {
       : hardware.data?.temperatureList;
 
   // chart 數據格式
-  const makeSeries = (arr) =>
+  const makeSeries = (arr: number[] | undefined) =>
     Array.isArray(arr)
       ? arr.map((val, idx) => ({
           time: idx,
@@ -59,7 +69,6 @@ export default function Index() {
   const current_A = stats ? Math.abs(stats.current_mA) / 1000 : 0;
   const voltage_V = stats ? stats.voltage_mV / 1000 : 0;
   const temperature_C = stats?.temperature_C ?? 0;
-  // const power_W = current_A * voltage_V;
   const power_W =
     powerList && powerList.length > 0 ? powerList[powerList.length - 1] : 0;
 
@@ -67,41 +76,40 @@ export default function Index() {
   const position = useSharedValue(0);
   const totalPages = 4;
 
-  const onPageScroll = (event) => {
+  const onPageScroll = (event: any) => {
     position.value = event.nativeEvent.position + event.nativeEvent.offset;
   };
 
   const isUncharged = label === "未充電";
   const statusColor = isUncharged
-    ? "#757575"
+    ? THEME.muted
     : abnormal
-    ? "#e53935"
-    : "#1b8f41";
-  const statusBg = isUncharged ? "#f5f5f5" : abnormal ? "#ffebee" : "#e8f5e9";
+    ? THEME.danger
+    : THEME.success;
+  const statusBg = isUncharged
+    ? THEME.neutralBg
+    : abnormal
+    ? THEME.warningBg
+    : THEME.successBg;
 
   return (
     <>
       <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={{ alignItems: "center", marginVertical: 6 }}>
-          <Text style={{ fontSize: 20, fontWeight: "bold", color: "#5c6bc0" }}>
-            即時訊息顯示
-          </Text>
+        <View style={styles.headerWrap}>
+          <Text style={styles.headerTitle}>即時訊息顯示</Text>
         </View>
-        <View style={{ width: "100%", alignItems: "center" }}>
+
+        <View style={styles.statusRow}>
           <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "bold",
-              color: statusColor,
-              backgroundColor: statusBg,
-              borderRadius: 10,
-              paddingHorizontal: 12,
-              paddingVertical: 3,
-            }}
+            style={[
+              styles.statusPill,
+              { color: statusColor, backgroundColor: statusBg },
+            ]}
           >
             {abnormal ? `異常：${label}` : `狀態：${label}`}
           </Text>
         </View>
+
         <AnimatedPagerView
           style={styles.chartContainer}
           initialPage={0}
@@ -111,7 +119,7 @@ export default function Index() {
           <View key="1" style={{ flex: 1 }}>
             <LineChart
               data={currentData}
-              lineColor="red"
+              lineColor="#ef4444"
               label="電流 (A)"
               yDomain={[0, 2]}
             />
@@ -119,7 +127,7 @@ export default function Index() {
           <View key="2" style={{ flex: 1 }}>
             <LineChart
               data={voltageData}
-              lineColor="darkgreen"
+              lineColor="#16a34a"
               label="電壓 (V)"
               yDomain={[0, 5]}
             />
@@ -127,7 +135,7 @@ export default function Index() {
           <View key="3" style={{ flex: 1 }}>
             <LineChart
               data={powerData}
-              lineColor="darkblue"
+              lineColor="#1d4ed8"
               label="功率 (W)"
               yDomain={[0, 10]}
             />
@@ -135,14 +143,15 @@ export default function Index() {
           <View key="4" style={{ flex: 1 }}>
             <LineChart
               data={temperatureData}
-              lineColor="orange"
+              lineColor="#f59e0b"
               label="溫度 (°C)"
               yDomain={[0, 60]}
             />
           </View>
         </AnimatedPagerView>
-        {/* Pagination indicator */}
+
         <PaginationIndicator totalPages={totalPages} position={position} />
+
         <View style={styles.widgetsContainer}>
           <SquareWidget
             name="功率"
@@ -156,7 +165,6 @@ export default function Index() {
             icon="current-ac"
             unit="A"
           />
-
           <SquareWidget
             name="電壓"
             value={voltage_V.toFixed(2)}
@@ -166,7 +174,7 @@ export default function Index() {
           <SquareWidget
             name="溫度"
             value={temperature_C.toFixed(1)}
-            icon="power-plug-outline"
+            icon="thermometer"
             unit="°C"
           />
         </View>
@@ -181,15 +189,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#fff",
   },
+  headerWrap: {
+    alignItems: "center",
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#5c6bc0",
+    letterSpacing: 0.2,
+  },
+  statusRow: { width: "100%", alignItems: "center" },
+  statusPill: {
+    fontSize: 13,
+    fontWeight: "600",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  chartContainer: {
+    height: "50%",
+    width: "100%",
+    paddingHorizontal: 16,
+    paddingTop: 4,
+  },
   widgetsContainer: {
     padding: 20,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
     alignSelf: "stretch",
-  },
-  chartContainer: {
-    height: "50%",
-    width: "100%",
   },
 });

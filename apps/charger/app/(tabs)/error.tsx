@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,24 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useErrorLog } from "@/contexts/ErrorLogContext";
 
+const startOfDay = (d: Date) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+};
+const endOfDay = (d: Date) => {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+};
+
+type LogItem = {
+  id: string;
+  reason: string;
+  type: string;
+  timestamp: string | number | Date;
+};
+
 export default function ErrorPage() {
   const { logs, removeLogs } = useErrorLog();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -22,8 +40,13 @@ export default function ErrorPage() {
   const [timeRange, setTimeRange] = useState<"all" | "24h" | "7d" | "custom">(
     "all"
   );
-  const [customStart, setCustomStart] = useState<Date | null>(null);
-  const [customEnd, setCustomEnd] = useState<Date | null>(null);
+
+  const [customStart, setCustomStart] = useState<Date>(() =>
+    startOfDay(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+  );
+  const [customEnd, setCustomEnd] = useState<Date>(() => endOfDay(new Date()));
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
 
   const types = useMemo(
     () => Array.from(new Set(logs.map((l) => l.type))),
@@ -44,7 +67,7 @@ export default function ErrorPage() {
     }
   };
 
-  const renderItem = ({ item }) => {
+  const renderItem = ({ item }: { item: LogItem }) => {
     const checked = !!selected[item.id];
     return (
       <TouchableOpacity style={styles.item} onPress={() => toggle(item.id)}>
@@ -80,9 +103,7 @@ export default function ErrorPage() {
       if (timeRange === "24h") matchTime = t >= now - 24 * 60 * 60 * 1000;
       if (timeRange === "7d") matchTime = t >= now - 7 * 24 * 60 * 60 * 1000;
       if (timeRange === "custom") {
-        matchTime =
-          (!customStart || t >= customStart.getTime()) &&
-          (!customEnd || t <= customEnd.getTime());
+        matchTime = t >= customStart.getTime() && t <= customEnd.getTime();
       }
       return matchText && matchTime && matchType;
     });
@@ -97,144 +118,208 @@ export default function ErrorPage() {
   };
   const clearSelection = () => setSelected({});
 
+  const selectCustom = () => {
+    const end = endOfDay(new Date());
+    const start = startOfDay(new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000));
+    setCustomStart(start);
+    setCustomEnd(end);
+    setTimeRange("custom");
+  };
+
+  useEffect(() => {
+    if (timeRange === "custom" && customStart.getTime() > customEnd.getTime()) {
+      setCustomEnd(endOfDay(customStart));
+    }
+  }, [timeRange, customStart, customEnd]);
+
+  const emptyText =
+    logs.length === 0 ? "目前沒有異常紀錄" : "沒有符合條件的紀錄";
+
   return (
     <SafeAreaView style={styles.container}>
-      {logs.length === 0 ? (
-        <Text style={styles.empty}>目前沒有異常紀錄</Text>
-      ) : (
-        <>
-          <View style={styles.filterSection}>
-            <TextInput
-              placeholder="搜尋原因"
-              value={filterText}
-              onChangeText={setFilterText}
-              style={styles.searchInput}
-            />
-            <Picker
-              selectedValue={selectedType}
-              onValueChange={(v) => setSelectedType(v)}
-              style={styles.typePicker}
+      <View style={styles.filterSection}>
+        <TextInput
+          placeholder="搜尋原因"
+          value={filterText}
+          onChangeText={setFilterText}
+          style={styles.searchInput}
+        />
+
+        <Picker
+          selectedValue={selectedType}
+          onValueChange={(v) => setSelectedType(v)}
+          style={styles.typePicker}
+        >
+          <Picker.Item label="全部種類" value="all" />
+          {types.map((t) => (
+            <Picker.Item key={t} label={t} value={t} />
+          ))}
+        </Picker>
+
+        <View style={styles.rangePicker}>
+          <Pressable
+            accessibilityRole="button"
+            style={[
+              styles.rangeOption,
+              timeRange === "all" && styles.rangeOptionActive,
+            ]}
+            onPress={() => setTimeRange("all")}
+          >
+            <Text
+              style={[
+                styles.rangeText,
+                timeRange === "all" && styles.rangeTextActive,
+              ]}
             >
-              <Picker.Item label="全部種類" value="all" />
-              {types.map((t) => (
-                <Picker.Item key={t} label={t} value={t} />
-              ))}
-            </Picker>
-            <View style={styles.rangePicker}>
-              <Pressable
-                accessibilityRole="button"
-                style={[
-                  styles.rangeOption,
-                  timeRange === "all" && styles.rangeOptionActive,
-                ]}
-                onPress={() => setTimeRange("all")}
-              >
-                <Text
-                  style={[
-                    styles.rangeText,
-                    timeRange === "all" && styles.rangeTextActive,
-                  ]}
-                >
-                  全部
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                style={[
-                  styles.rangeOption,
-                  timeRange === "24h" && styles.rangeOptionActive,
-                ]}
-                onPress={() => setTimeRange("24h")}
-              >
-                <Text
-                  style={[
-                    styles.rangeText,
-                    timeRange === "24h" && styles.rangeTextActive,
-                  ]}
-                >
-                  24小時
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                style={[
-                  styles.rangeOption,
-                  timeRange === "7d" && styles.rangeOptionActive,
-                ]}
-                onPress={() => setTimeRange("7d")}
-              >
-                <Text
-                  style={[
-                    styles.rangeText,
-                    timeRange === "7d" && styles.rangeTextActive,
-                  ]}
-                >
-                  7天
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                style={[
-                  styles.rangeOption,
-                  timeRange === "custom" && styles.rangeOptionActive,
-                ]}
-                onPress={() => setTimeRange("custom")}
-              >
-                <Text
-                  style={[
-                    styles.rangeText,
-                    timeRange === "custom" && styles.rangeTextActive,
-                  ]}
-                >
-                  自訂
-                </Text>
-              </Pressable>
-            </View>
-            {timeRange === "custom" && (
-              <View style={styles.customRange}>
-                <DateTimePicker
-                  value={customStart || new Date()}
-                  mode="date"
-                  display="default"
-                  onChange={(_, date) => setCustomStart(date || customStart)}
-                />
-                <Text style={styles.rangeSeparator}>~</Text>
-                <DateTimePicker
-                  value={customEnd || new Date()}
-                  mode="date"
-                  display="default"
-                  onChange={(_, date) => setCustomEnd(date || customEnd)}
-                />
-              </View>
+              全部
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            style={[
+              styles.rangeOption,
+              timeRange === "24h" && styles.rangeOptionActive,
+            ]}
+            onPress={() => setTimeRange("24h")}
+          >
+            <Text
+              style={[
+                styles.rangeText,
+                timeRange === "24h" && styles.rangeTextActive,
+              ]}
+            >
+              24小時
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            style={[
+              styles.rangeOption,
+              timeRange === "7d" && styles.rangeOptionActive,
+            ]}
+            onPress={() => setTimeRange("7d")}
+          >
+            <Text
+              style={[
+                styles.rangeText,
+                timeRange === "7d" && styles.rangeTextActive,
+              ]}
+            >
+              7天
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            style={[
+              styles.rangeOption,
+              timeRange === "custom" && styles.rangeOptionActive,
+            ]}
+            onPress={selectCustom}
+          >
+            <Text
+              style={[
+                styles.rangeText,
+                timeRange === "custom" && styles.rangeTextActive,
+              ]}
+            >
+              自訂
+            </Text>
+          </Pressable>
+        </View>
+
+        {timeRange === "custom" && (
+          <View style={styles.customRangeRow}>
+            <Pressable
+              style={styles.dateButton}
+              onPress={() => setShowStartPicker(true)}
+            >
+              <Text style={styles.dateButtonText}>
+                {customStart.toLocaleDateString()}
+              </Text>
+            </Pressable>
+
+            <Text style={styles.rangeSeparator}>~</Text>
+
+            <Pressable
+              style={styles.dateButton}
+              onPress={() => setShowEndPicker(true)}
+            >
+              <Text style={styles.dateButtonText}>
+                {customEnd.toLocaleDateString()}
+              </Text>
+            </Pressable>
+
+            {showStartPicker && (
+              <DateTimePicker
+                value={customStart}
+                mode="date"
+                display="default"
+                onChange={(event, date) => {
+                  setShowStartPicker(false);
+                  if (date) setCustomStart(startOfDay(date));
+                }}
+              />
+            )}
+
+            {showEndPicker && (
+              <DateTimePicker
+                value={customEnd}
+                mode="date"
+                display="default"
+                onChange={(event, date) => {
+                  setShowEndPicker(false);
+                  if (date) setCustomEnd(endOfDay(date));
+                }}
+              />
             )}
           </View>
-          {filteredLogs.length === 0 ? (
-            <Text style={styles.empty}>沒有符合條件的紀錄</Text>
-          ) : (
-            <FlatList
-              data={filteredLogs}
-              renderItem={renderItem}
-              keyExtractor={(item) => item.id}
-            />
-          )}
-          <View style={styles.actions}>
-            <Button title="全選" onPress={selectAll} />
-            <Button title="清除選取" onPress={clearSelection} />
-            <Button
-              title="刪除選取"
-              onPress={deleteSelected}
-              disabled={!hasSelection}
-              color="#e53935"
-            />
-          </View>
-        </>
-      )}
+        )}
+      </View>
+
+      <View style={styles.content}>
+        <FlatList
+          data={filteredLogs}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          style={styles.list}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 8 }}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <Text style={styles.empty}>{emptyText}</Text>
+            </View>
+          }
+        />
+      </View>
+
+      <View style={styles.actions}>
+        <Button
+          title="全選"
+          onPress={selectAll}
+          disabled={filteredLogs.length === 0}
+        />
+        <Button
+          title="清除選取"
+          onPress={clearSelection}
+          disabled={!hasSelection}
+        />
+        <Button
+          title="刪除選取"
+          onPress={deleteSelected}
+          disabled={!hasSelection}
+          color="#e53935"
+        />
+      </View>
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: "#fff" },
-  empty: { textAlign: "center", marginTop: 20, color: "#555" },
+
+  // 空訊息文字
+  empty: { textAlign: "center", color: "#555" },
+
+  // 篩選區
   filterSection: { marginBottom: 12 },
   searchInput: {
     borderWidth: 1,
@@ -257,13 +342,37 @@ const styles = StyleSheet.create({
   rangeOptionActive: { backgroundColor: "#4f46e5" },
   rangeText: { textAlign: "center", color: "#4f46e5" },
   rangeTextActive: { color: "#fff" },
-  customRange: {
+
+  customRangeRow: {
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
     marginTop: 8,
   },
+  dateButton: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    minWidth: 120,
+  },
+  dateButtonText: {
+    textAlign: "center",
+    color: "#333",
+    fontSize: 14,
+  },
   rangeSeparator: { marginHorizontal: 8, color: "#4f46e5" },
+
+  content: { flex: 1 },
+  list: { flex: 1 },
+  emptyWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // 清單項目
   item: {
     flexDirection: "row",
     alignItems: "center",
@@ -279,16 +388,18 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     marginRight: 12,
   },
-
-  checkboxChecked: {
-    backgroundColor: "#5c6bc0",
-  },
+  checkboxChecked: { backgroundColor: "#5c6bc0" },
   itemText: { flex: 1 },
   reason: { fontSize: 16, color: "#222" },
   timestamp: { fontSize: 12, color: "#666", marginTop: 4 },
+
   actions: {
     marginTop: 12,
     flexDirection: "row",
     justifyContent: "space-between",
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#e5e7eb",
+    backgroundColor: "#fff",
   },
 });
