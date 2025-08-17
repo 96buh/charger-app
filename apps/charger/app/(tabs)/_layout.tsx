@@ -1,8 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs, useRouter } from "expo-router";
+import { Tabs } from "expo-router";
+import { useSettings } from "@/contexts/SettingsContext";
+import i18n from "@/utils/i18n";
 
 export default function TabsLayout() {
-  const router = useRouter();
+  const { language } = useSettings();
+  i18n.locale = language;
   return (
     <>
       <Tabs
@@ -15,12 +18,13 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="home"
           options={{
-            headerTitle: "即時訊息顯示",
+            headerTitle: i18n.t("realtimeDisplay"),
+            tabBarLabel: i18n.t("realtimeDisplay"),
             tabBarIcon: ({ focused, color }) => (
               <Ionicons
-                name={focused ? "battery-charging" : "battery-charging-outline"} //點擊標籤時顯示填滿的圖示;反之顯示空心的圖示
-                color={color} //tabBarActiveTintColor設定的顏色
-                size={30} //大小
+                name={focused ? "battery-charging" : "battery-charging-outline"}
+                color={color}
+                size={30}
               />
             ),
           }}
@@ -28,12 +32,13 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="history"
           options={{
-            headerTitle: "歷史充電查詢",
+            headerTitle: i18n.t("historySearch"),
+            tabBarLabel: i18n.t("historySearch"),
             tabBarIcon: ({ focused, color }) => (
               <Ionicons
-                name={focused ? "timer-sharp" : "timer-outline"} //點擊標籤時顯示填滿的圖示;反之顯示空心的圖示
-                color={color} //tabBarActiveTintColor設定的顏色
-                size={30} //大小
+                name={focused ? "timer-sharp" : "timer-outline"}
+                color={color}
+                size={30}
               />
             ),
           }}
@@ -41,12 +46,13 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="error"
           options={{
-            headerTitle: "歷史異常紀錄",
+            headerTitle: i18n.t("errorRecord"),
+            tabBarLabel: i18n.t("errorRecord"),
             tabBarIcon: ({ focused, color }) => (
               <Ionicons
-                name={focused ? "warning-sharp" : "warning-outline"} //點擊標籤時顯示填滿的圖示;反之顯示空心的圖示
-                color={color} //tabBarActiveTintColor設定的顏色
-                size={30} //大小
+                name={focused ? "warning-sharp" : "warning-outline"}
+                color={color}
+                size={30}
               />
             ),
           }}
@@ -54,12 +60,13 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="settings"
           options={{
-            headerTitle: "設定",
+            headerTitle: i18n.t("settings"),
+            tabBarLabel: i18n.t("settings"),
             tabBarIcon: ({ focused, color }) => (
               <Ionicons
-                name={focused ? "settings-sharp" : "settings-outline"} //點擊標籤時顯示填滿的圖示;反之顯示空心的圖示
-                color={color} //tabBarActiveTintColor設定的顏色
-                size={30} //大小
+                name={focused ? "settings-sharp" : "settings-outline"}
+                color={color}
+                size={30}
               />
             ),
           }}

@@ -21,7 +21,9 @@ export function SquareWidget({
         ) : (
           <FontAwesome6 name="temperature-half" size={24} color="black" />
         )}
-        <Text style={styles.headerName}>{name}</Text>
+        <Text style={styles.headerName} numberOfLines={1}>
+          {name}
+        </Text>
       </View>
       <View style={styles.contentContainer}>
         <Text style={styles.content}>

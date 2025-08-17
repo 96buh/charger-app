@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { Button, View, Text, Pressable, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useSettings } from "@/contexts/SettingsContext";
+import i18n from "@/utils/i18n";
 
 import {
   VictoryAxis,
@@ -15,6 +17,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export default function HistoryScreen() {
   const { history, clearHistory } = useChargeHistory();
+  const { language } = useSettings();
+  i18n.locale = language;
   const [range, setRange] = useState<7 | 30>(7);
 
   const chartData = useMemo(() => {
@@ -50,7 +54,7 @@ export default function HistoryScreen() {
           <Text
             style={[styles.rangeText, range === 7 && styles.rangeTextActive]}
           >
-            7天
+            {i18n.t("days7")}
           </Text>
         </Pressable>
         <Pressable
@@ -61,19 +65,19 @@ export default function HistoryScreen() {
           <Text
             style={[styles.rangeText, range === 30 && styles.rangeTextActive]}
           >
-            30天
+            {i18n.t("days30")}
           </Text>
         </Pressable>
       </View>
       <View style={{ marginBottom: 16, alignItems: "center" }}>
         <Button
-          title="清除紀錄"
+          title={i18n.t("clearHistory")}
           onPress={clearHistory}
           disabled={history.length === 0}
         />
       </View>
       {history.length === 0 ? (
-        <Text style={{ textAlign: "center" }}>沒有充電記錄</Text>
+        <Text style={{ textAlign: "center" }}>{i18n.t("noHistory")}</Text>
       ) : (
         <VictoryChart
           domainPadding={{ x: 20 }}

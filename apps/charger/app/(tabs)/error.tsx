@@ -13,6 +13,8 @@ import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useErrorLog } from "@/contexts/ErrorLogContext";
+import { useSettings } from "@/contexts/SettingsContext";
+import i18n from "@/utils/i18n";
 
 const startOfDay = (d: Date) => {
   const x = new Date(d);
@@ -34,6 +36,9 @@ type LogItem = {
 
 export default function ErrorPage() {
   const { logs, removeLogs } = useErrorLog();
+  const { language } = useSettings();
+  i18n.locale = language;
+
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [filterText, setFilterText] = useState("");
   const [selectedType, setSelectedType] = useState("all");
@@ -133,13 +138,13 @@ export default function ErrorPage() {
   }, [timeRange, customStart, customEnd]);
 
   const emptyText =
-    logs.length === 0 ? "目前沒有異常紀錄" : "沒有符合條件的紀錄";
+    logs.length === 0 ? i18n.t("noErrorLogs") : i18n.t("noMatchingLogs");
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.filterSection}>
         <TextInput
-          placeholder="搜尋原因"
+          placeholder={i18n.t("searchReason")}
           value={filterText}
           onChangeText={setFilterText}
           style={styles.searchInput}
@@ -150,7 +155,7 @@ export default function ErrorPage() {
           onValueChange={(v) => setSelectedType(v)}
           style={styles.typePicker}
         >
-          <Picker.Item label="全部種類" value="all" />
+          <Picker.Item label={i18n.t("allTypes") as string} value="all" />
           {types.map((t) => (
             <Picker.Item key={t} label={t} value={t} />
           ))}
@@ -171,7 +176,7 @@ export default function ErrorPage() {
                 timeRange === "all" && styles.rangeTextActive,
               ]}
             >
-              全部
+              {i18n.t("all")}
             </Text>
           </Pressable>
           <Pressable
@@ -188,7 +193,7 @@ export default function ErrorPage() {
                 timeRange === "24h" && styles.rangeTextActive,
               ]}
             >
-              24小時
+              {i18n.t("hours24")}
             </Text>
           </Pressable>
           <Pressable
@@ -205,7 +210,7 @@ export default function ErrorPage() {
                 timeRange === "7d" && styles.rangeTextActive,
               ]}
             >
-              7天
+              {i18n.t("days7")}
             </Text>
           </Pressable>
           <Pressable
@@ -222,7 +227,7 @@ export default function ErrorPage() {
                 timeRange === "custom" && styles.rangeTextActive,
               ]}
             >
-              自訂
+              {i18n.t("custom")}
             </Text>
           </Pressable>
         </View>
@@ -293,17 +298,17 @@ export default function ErrorPage() {
 
       <View style={styles.actions}>
         <Button
-          title="全選"
+          title={i18n.t("selectAll")}
           onPress={selectAll}
           disabled={filteredLogs.length === 0}
         />
         <Button
-          title="清除選取"
+          title={i18n.t("clearSelection")}
           onPress={clearSelection}
           disabled={!hasSelection}
         />
         <Button
-          title="刪除選取"
+          title={i18n.t("deleteSelection")}
           onPress={deleteSelected}
           disabled={!hasSelection}
           color="#e53935"
