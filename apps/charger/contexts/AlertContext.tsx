@@ -13,7 +13,7 @@ const ALERT_SOUND = require("@/assets/sounds/alert.mp3");
 const AlertContext = createContext();
 
 export function AlertProvider({ children }) {
-  const { source } = useSettings();
+  const { source, tempThreshold } = useSettings();
   const battery = useBatteryData();
   const hardware = useHardwareData();
   const player = useAudioPlayer(ALERT_SOUND);
@@ -65,45 +65,32 @@ export function AlertProvider({ children }) {
     prevCharging.current = isCharging;
   }, [isCharging]);
 
-  // ========== 溫度區間異常語音 ==========
-  const lastAlertedTemp = useRef(null);
+  // ========== 溫度閾值通知 ==========
+  const lastAlertedTemp = useRef(false);
   useEffect(() => {
-    const tempThresholds = [35, 40, 45, 50];
     const temp = hardware.data?.stats?.temperature_C ?? null;
-
-    // 找到目前所處的最高溫度區間
-    let highestReached = null;
-    if (temp !== null) {
-      for (let i = tempThresholds.length - 1; i >= 0; i--) {
-        if (temp >= tempThresholds[i]) {
-          highestReached = tempThresholds[i];
-          break;
+    if (temp !== null && tempThreshold !== null) {
+      if (temp >= tempThreshold) {
+        if (!lastAlertedTemp.current) {
+          showMessage({
+            message: `充電異常：變壓器溫度超過${tempThreshold}度`,
+            type: "danger",
+            icon: "auto",
+            duration: 5000,
+          });
+          addLog({
+            id: Date.now().toString(),
+            timestamp: new Date().toISOString(),
+            reason: `變壓器溫度超過${tempThreshold}度`,
+          });
+          speakAlert(`變壓器溫度超過${tempThreshold}度`);
+          lastAlertedTemp.current = true;
         }
+      } else {
+        lastAlertedTemp.current = false;
       }
     }
-
-    // 若進入新區間才播報，且不會再唸低區間
-    if (highestReached !== null && lastAlertedTemp.current !== highestReached) {
-      showMessage({
-        message: `充電異常：變壓器溫度超過${highestReached}度`,
-        type: "danger",
-        icon: "auto",
-        duration: 5000,
-      });
-      addLog({
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString(),
-        reason: `變壓器溫度超過${highestReached}度`,
-      });
-      speakAlert(`變壓器溫度超過${highestReached}度`);
-      lastAlertedTemp.current = highestReached;
-    }
-
-    // 溫度下降到最低區間以下，重設
-    if (temp !== null && temp < tempThresholds[0]) {
-      lastAlertedTemp.current = null;
-    }
-  }, [hardware.data?.stats?.temperature_C, isCharging]);
+  }, [hardware.data?.stats?.temperature_C, tempThreshold]);
 
   // ========== 一般異常判斷與通知 ==========
   useEffect(() => {
