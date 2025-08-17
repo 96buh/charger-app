@@ -8,6 +8,7 @@ export function SettingsProvider({ children }) {
   const [esp32Ip, setEsp32Ip] = useState("");
   const [esp32Port, setEsp32Port] = useState("8080");
   const [esp32Path, setEsp32Path] = useState("/get_result");
+  const [tempThreshold, setTempThreshold] = useState(40);
 
   // 自動載入與保存設定到本地
   useEffect(() => {
@@ -18,6 +19,7 @@ export function SettingsProvider({ children }) {
         if (s.esp32Ip) setEsp32Ip(s.esp32Ip);
         if (s.esp32Port) setEsp32Port(s.esp32Port);
         if (s.esp32Path) setEsp32Path(s.esp32Path);
+        if (s.tempThreshold !== undefined) setTempThreshold(s.tempThreshold);
       }
     });
   }, []);
@@ -25,9 +27,15 @@ export function SettingsProvider({ children }) {
   useEffect(() => {
     AsyncStorage.setItem(
       "app_settings",
-      JSON.stringify({ source, esp32Ip, esp32Port, esp32Path })
+      JSON.stringify({
+        source,
+        esp32Ip,
+        esp32Port,
+        esp32Path,
+        tempThreshold,
+      })
     );
-  }, [source, esp32Ip, esp32Port, esp32Path]);
+  }, [source, esp32Ip, esp32Port, esp32Path, tempThreshold]);
 
   return (
     <SettingsContext.Provider
@@ -40,6 +48,8 @@ export function SettingsProvider({ children }) {
         setEsp32Port,
         esp32Path,
         setEsp32Path,
+        tempThreshold,
+        setTempThreshold,
       }}
     >
       {children}

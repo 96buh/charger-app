@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,13 +6,29 @@ import {
   TouchableOpacity,
   StyleSheet,
   Button,
+  TextInput,
+  Pressable,
 } from "react-native";
+import { Picker } from "@react-native-picker/picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useErrorLog } from "@/contexts/ErrorLogContext";
 
 export default function ErrorPage() {
   const { logs, removeLogs } = useErrorLog();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [filterText, setFilterText] = useState("");
+  const [selectedType, setSelectedType] = useState("all");
+  const [timeRange, setTimeRange] = useState<"all" | "24h" | "7d" | "custom">(
+    "all"
+  );
+  const [customStart, setCustomStart] = useState<Date | null>(null);
+  const [customEnd, setCustomEnd] = useState<Date | null>(null);
+
+  const types = useMemo(
+    () => Array.from(new Set(logs.map((l) => l.type))),
+    [logs]
+  );
 
   const toggle = (id: string) => {
     setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -36,7 +52,14 @@ export default function ErrorPage() {
         <View style={styles.itemText}>
           <Text style={styles.reason}>{item.reason}</Text>
           <Text style={styles.timestamp}>
-            {new Date(item.timestamp).toLocaleString()}
+            {new Date(item.timestamp).toLocaleString([], {
+              hour12: false,
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
           </Text>
         </View>
       </TouchableOpacity>
@@ -45,18 +68,158 @@ export default function ErrorPage() {
 
   const hasSelection = Object.values(selected).some((v) => v);
 
+  const filteredLogs = useMemo(() => {
+    const now = Date.now();
+    return logs.filter((l) => {
+      const matchText = l.reason
+        .toLowerCase()
+        .includes(filterText.toLowerCase());
+      const matchType = selectedType === "all" || l.type === selectedType;
+      const t = new Date(l.timestamp).getTime();
+      let matchTime = true;
+      if (timeRange === "24h") matchTime = t >= now - 24 * 60 * 60 * 1000;
+      if (timeRange === "7d") matchTime = t >= now - 7 * 24 * 60 * 60 * 1000;
+      if (timeRange === "custom") {
+        matchTime =
+          (!customStart || t >= customStart.getTime()) &&
+          (!customEnd || t <= customEnd.getTime());
+      }
+      return matchText && matchTime && matchType;
+    });
+  }, [logs, filterText, selectedType, timeRange, customStart, customEnd]);
+
+  const selectAll = () => {
+    const all: Record<string, boolean> = {};
+    filteredLogs.forEach((l) => {
+      all[l.id] = true;
+    });
+    setSelected(all);
+  };
+  const clearSelection = () => setSelected({});
+
   return (
     <SafeAreaView style={styles.container}>
       {logs.length === 0 ? (
         <Text style={styles.empty}>目前沒有異常紀錄</Text>
       ) : (
         <>
-          <FlatList
-            data={logs}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.id}
-          />
+          <View style={styles.filterSection}>
+            <TextInput
+              placeholder="搜尋原因"
+              value={filterText}
+              onChangeText={setFilterText}
+              style={styles.searchInput}
+            />
+            <Picker
+              selectedValue={selectedType}
+              onValueChange={(v) => setSelectedType(v)}
+              style={styles.typePicker}
+            >
+              <Picker.Item label="全部種類" value="all" />
+              {types.map((t) => (
+                <Picker.Item key={t} label={t} value={t} />
+              ))}
+            </Picker>
+            <View style={styles.rangePicker}>
+              <Pressable
+                accessibilityRole="button"
+                style={[
+                  styles.rangeOption,
+                  timeRange === "all" && styles.rangeOptionActive,
+                ]}
+                onPress={() => setTimeRange("all")}
+              >
+                <Text
+                  style={[
+                    styles.rangeText,
+                    timeRange === "all" && styles.rangeTextActive,
+                  ]}
+                >
+                  全部
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={[
+                  styles.rangeOption,
+                  timeRange === "24h" && styles.rangeOptionActive,
+                ]}
+                onPress={() => setTimeRange("24h")}
+              >
+                <Text
+                  style={[
+                    styles.rangeText,
+                    timeRange === "24h" && styles.rangeTextActive,
+                  ]}
+                >
+                  24小時
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={[
+                  styles.rangeOption,
+                  timeRange === "7d" && styles.rangeOptionActive,
+                ]}
+                onPress={() => setTimeRange("7d")}
+              >
+                <Text
+                  style={[
+                    styles.rangeText,
+                    timeRange === "7d" && styles.rangeTextActive,
+                  ]}
+                >
+                  7天
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={[
+                  styles.rangeOption,
+                  timeRange === "custom" && styles.rangeOptionActive,
+                ]}
+                onPress={() => setTimeRange("custom")}
+              >
+                <Text
+                  style={[
+                    styles.rangeText,
+                    timeRange === "custom" && styles.rangeTextActive,
+                  ]}
+                >
+                  自訂
+                </Text>
+              </Pressable>
+            </View>
+            {timeRange === "custom" && (
+              <View style={styles.customRange}>
+                <DateTimePicker
+                  value={customStart || new Date()}
+                  mode="date"
+                  display="default"
+                  onChange={(_, date) => setCustomStart(date || customStart)}
+                />
+                <Text style={styles.rangeSeparator}>~</Text>
+                <DateTimePicker
+                  value={customEnd || new Date()}
+                  mode="date"
+                  display="default"
+                  onChange={(_, date) => setCustomEnd(date || customEnd)}
+                />
+              </View>
+            )}
+          </View>
+          {filteredLogs.length === 0 ? (
+            <Text style={styles.empty}>沒有符合條件的紀錄</Text>
+          ) : (
+            <FlatList
+              data={filteredLogs}
+              renderItem={renderItem}
+              keyExtractor={(item) => item.id}
+            />
+          )}
           <View style={styles.actions}>
+            <Button title="全選" onPress={selectAll} />
+            <Button title="清除選取" onPress={clearSelection} />
             <Button
               title="刪除選取"
               onPress={deleteSelected}
@@ -72,6 +235,35 @@ export default function ErrorPage() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: "#fff" },
   empty: { textAlign: "center", marginTop: 20, color: "#555" },
+  filterSection: { marginBottom: 12 },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  typePicker: { marginBottom: 8 },
+  rangePicker: {
+    flexDirection: "row",
+    alignSelf: "center",
+    borderWidth: 1,
+    borderColor: "#4f46e5",
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  rangeOption: { flex: 1, paddingVertical: 6, backgroundColor: "#fff" },
+  rangeOptionActive: { backgroundColor: "#4f46e5" },
+  rangeText: { textAlign: "center", color: "#4f46e5" },
+  rangeTextActive: { color: "#fff" },
+  customRange: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  rangeSeparator: { marginHorizontal: 8, color: "#4f46e5" },
   item: {
     flexDirection: "row",
     alignItems: "center",
@@ -94,5 +286,9 @@ const styles = StyleSheet.create({
   itemText: { flex: 1 },
   reason: { fontSize: 16, color: "#222" },
   timestamp: { fontSize: 12, color: "#666", marginTop: 4 },
-  actions: { marginTop: 12 },
+  actions: {
+    marginTop: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
 });

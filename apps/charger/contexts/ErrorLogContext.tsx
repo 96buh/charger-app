@@ -11,6 +11,7 @@ export interface ErrorRecord {
   id: string;
   timestamp: string; // ISO string
   reason: string;
+  type: string;
 }
 
 interface ErrorLogContextProps {
@@ -38,7 +39,14 @@ export const ErrorLogProvider: React.FC<{ children: React.ReactNode }> = ({
         if (raw) {
           const parsed: unknown = JSON.parse(raw);
           if (Array.isArray(parsed)) {
-            setLogs(parsed as ErrorRecord[]);
+            setLogs(
+              (parsed as any[]).map((l) => ({
+                id: l.id,
+                timestamp: l.timestamp,
+                reason: l.reason,
+                type: l.type ?? l.reason,
+              }))
+            );
           }
         }
       } catch (e) {
