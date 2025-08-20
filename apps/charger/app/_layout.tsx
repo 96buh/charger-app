@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import { BatteryDataProvider } from "@/contexts/BatteryDataContext";
 import { HardwareDataProvider } from "@/contexts/HardwareContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
@@ -9,7 +10,13 @@ import { ErrorLogProvider } from "@/contexts/ErrorLogContext";
 import FlashMessage from "react-native-flash-message";
 import Constants from "expo-constants";
 
+import { registerChargingMonitorAsync } from "@/app/chargingMonitorTask";
+
 export default function RootLayout() {
+  useEffect(() => {
+    registerChargingMonitorAsync();
+  }, []);
+
   return (
     <>
       <SettingsProvider>
