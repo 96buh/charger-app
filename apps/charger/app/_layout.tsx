@@ -1,6 +1,5 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { BatteryDataProvider } from "@/contexts/BatteryDataContext";
 import { HardwareDataProvider } from "@/contexts/HardwareContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { AlertProvider } from "@/contexts/AlertContext";
@@ -33,23 +32,21 @@ export default function RootLayout() {
         <ChargeHistoryProvider>
           <ErrorLogProvider>
             <HardwareDataProvider>
-              <BatteryDataProvider>
-                <AlertProvider>
-                  <FlashMessage
-                    position="top"
-                    statusBarHeight={Constants.statusBarHeight}
+              <AlertProvider>
+                <FlashMessage
+                  position="top"
+                  statusBarHeight={Constants.statusBarHeight}
+                />
+                <StatusBar style="dark" hidden={false} />
+                <Stack>
+                  {/*<Stack.Screen name="(auth)" options={{ headerShown: false }} />*/}
+                  <Stack.Screen
+                    name="(tabs)"
+                    options={{ headerShown: false }}
                   />
-                  <StatusBar style="dark" hidden={false} />
-                  <Stack>
-                    {/*<Stack.Screen name="(auth)" options={{ headerShown: false }} />*/}
-                    <Stack.Screen
-                      name="(tabs)"
-                      options={{ headerShown: false }}
-                    />
-                    <Stack.Screen name="+not-found" options={{}} />
-                  </Stack>
-                </AlertProvider>
-              </BatteryDataProvider>
+                  <Stack.Screen name="+not-found" options={{}} />
+                </Stack>
+              </AlertProvider>
             </HardwareDataProvider>
           </ErrorLogProvider>
         </ChargeHistoryProvider>
