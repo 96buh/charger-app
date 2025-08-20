@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  TouchableOpacity,
   Switch,
   ScrollView,
 } from "react-native";
@@ -18,8 +17,6 @@ export default function SettingsPage() {
   const {
     language,
     setLanguage,
-    source,
-    setSource,
     esp32Ip,
     setEsp32Ip,
     esp32Port,
@@ -39,76 +36,38 @@ export default function SettingsPage() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.header}>{i18n.t("dataSource")}</Text>
-        <View style={styles.switchRow}>
-          <TouchableOpacity
-            style={[
-              styles.switchBtn,
-              source === "local" && styles.switchBtnActive,
-            ]}
-            onPress={() => setSource("local")}
-          >
-            <Text
-              style={[
-                styles.switchText,
-                source === "local" && styles.switchTextActive,
-              ]}
-            >
-              {i18n.t("local")}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.switchBtn,
-              source === "esp32" && styles.switchBtnActive,
-            ]}
-            onPress={() => setSource("esp32")}
-          >
-            <Text
-              style={[
-                styles.switchText,
-                source === "esp32" && styles.switchTextActive,
-              ]}
-            >
-              {i18n.t("esp32")}
-            </Text>
-          </TouchableOpacity>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{i18n.t("esp32Settings")}</Text>
+          <Text style={styles.label}>{i18n.t("ipAddress")}</Text>
+          <TextInput
+            value={esp32Ip}
+            onChangeText={setEsp32Ip}
+            placeholder={i18n.t("exampleIp")}
+            keyboardType="numeric"
+            style={styles.input}
+            returnKeyType="next"
+          />
+
+          <Text style={styles.label}>{i18n.t("port")}</Text>
+          <TextInput
+            value={esp32Port}
+            onChangeText={setEsp32Port}
+            placeholder={i18n.t("defaultPort")}
+            keyboardType="numeric"
+            style={styles.input}
+            returnKeyType="next"
+          />
+
+          <Text style={styles.label}>{i18n.t("apiPath")}</Text>
+          <TextInput
+            value={esp32Path}
+            onChangeText={setEsp32Path}
+            placeholder="/get_result"
+            style={styles.input}
+            autoCapitalize="none"
+            returnKeyType="done"
+          />
         </View>
-
-        {source === "esp32" && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{i18n.t("esp32Settings")}</Text>
-            <Text style={styles.label}>{i18n.t("ipAddress")}</Text>
-            <TextInput
-              value={esp32Ip}
-              onChangeText={setEsp32Ip}
-              placeholder={i18n.t("exampleIp")}
-              keyboardType="numeric"
-              style={styles.input}
-              returnKeyType="next"
-            />
-
-            <Text style={styles.label}>{i18n.t("port")}</Text>
-            <TextInput
-              value={esp32Port}
-              onChangeText={setEsp32Port}
-              placeholder={i18n.t("defaultPort")}
-              keyboardType="numeric"
-              style={styles.input}
-              returnKeyType="next"
-            />
-
-            <Text style={styles.label}>{i18n.t("apiPath")}</Text>
-            <TextInput
-              value={esp32Path}
-              onChangeText={setEsp32Path}
-              placeholder="/get_result"
-              style={styles.input}
-              autoCapitalize="none"
-              returnKeyType="done"
-            />
-          </View>
-        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
@@ -165,39 +124,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 20,
-  },
-  header: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 20,
-    marginTop: 10,
-    letterSpacing: 1,
-    color: "#222b55",
-  },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 20,
-    gap: 16,
-  },
-  switchBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 28,
-    borderRadius: 10,
-    backgroundColor: "#ececec",
-    elevation: 2,
-  },
-  switchBtnActive: {
-    backgroundColor: "#5c6bc0",
-  },
-  switchText: {
-    fontSize: 16,
-    color: "#888",
-    fontWeight: "bold",
-    letterSpacing: 1,
-  },
-  switchTextActive: {
-    color: "#fff",
   },
   section: {
     marginTop: 30,

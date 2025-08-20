@@ -5,13 +5,21 @@ import React, {
   useState,
   useRef,
 } from "react";
-import { requireNativeModule } from "expo-modules-core";
 import { type BatteryStats } from "@/utils/types";
 import * as ort from "onnxruntime-react-native";
 import * as FileSystem from "expo-file-system";
 import { useHardwareData } from "@/contexts/HardwareContext";
 
-const Battery = requireNativeModule("Mybattery");
+const Battery = {
+  async getStats(): Promise<BatteryStats> {
+    return {
+      current_mA: 0,
+      voltage_mV: 0,
+      temperature_C: 0,
+      power_W: 0,
+    };
+  },
+};
 const WINDOW_SEC = 30;
 const SAMPLING_HZ = 1;
 const SEQ_LEN = 10;

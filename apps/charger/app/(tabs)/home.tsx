@@ -6,7 +6,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 // contexts
 import { useSettings } from "@/contexts/SettingsContext";
-import { useBatteryData } from "@/contexts/BatteryDataContext";
 import { useHardwareData } from "@/contexts/HardwareContext";
 import { useAlert } from "@/contexts/AlertContext";
 import i18n from "@/utils/i18n";
@@ -32,10 +31,9 @@ const THEME = {
 
 /** 渲染home組件, 使用widget顯示充電訊息, 用PagerView放不同的圖表 */
 export default function Index() {
-  const { source, language } = useSettings(); // local or esp32
+  const { language } = useSettings();
   i18n.locale = language;
 
-  const battery = useBatteryData();
   const hardware = useHardwareData();
   const { abnormal, label } = useAlert();
 
@@ -55,17 +53,11 @@ export default function Index() {
   const displayLabel = labelKey ? i18n.t(labelKey) : label;
 
   // 統一取得數據
-  const stats = source === "local" ? battery.stats : hardware.data?.stats;
-  const currentList =
-    source === "local" ? battery.currentList : hardware.data?.currentList;
-  const voltageList =
-    source === "local" ? battery.voltageList : hardware.data?.voltageList;
-  const powerList =
-    source === "local" ? battery.powerList : hardware.data?.powerList;
-  const temperatureList =
-    source === "local"
-      ? battery.temperatureList
-      : hardware.data?.temperatureList;
+  const stats = hardware.data?.stats;
+  const currentList = hardware.data?.currentList;
+  const voltageList = hardware.data?.voltageList;
+  const powerList = hardware.data?.powerList;
+  const temperatureList = hardware.data?.temperatureList;
 
   // chart 數據格式
   const makeSeries = (arr: number[] | undefined) =>
