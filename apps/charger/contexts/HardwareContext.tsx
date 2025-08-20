@@ -86,6 +86,7 @@ export function HardwareDataProvider({ children }) {
 
   const { addSession } = useChargeHistory();
   const chargeStartLevel = useRef<number | null>(null);
+  const chargeStartTime = useRef<number | null>(null);
 
   // ★★★ 充電狀態變化時清空資料 ★★★
   const prevCharging = useRef(isCharging);
@@ -94,19 +95,23 @@ export function HardwareDataProvider({ children }) {
       // 開始充電時記錄電量
       Battery.getBatteryLevelAsync().then((level) => {
         chargeStartLevel.current = level;
+        chargeStartTime.current = Date.now();
       });
     }
     if (prevCharging.current && !isCharging) {
       // 結束充電時計算充電百分比並記錄
       Battery.getBatteryLevelAsync().then((level) => {
-        const start = chargeStartLevel.current;
-        if (start != null && level != null) {
-          const diff = (level - start) * 100;
+        const startLevel = chargeStartLevel.current;
+        const startTime = chargeStartTime.current;
+        if (startLevel != null && level != null && startTime != null) {
+          const diff = (level - startLevel) * 100;
+          const durationMin = (Date.now() - startTime) / 60000;
           if (diff > 0) {
             const session: ChargeSession = {
               id: Date.now().toString(),
               timestamp: new Date().toISOString(),
               percent: Number(diff.toFixed(2)),
+              durationMin: Number(durationMin.toFixed(2)),
             };
             addSession(session);
           }
@@ -117,6 +122,8 @@ export function HardwareDataProvider({ children }) {
       voltageRef.current = [];
       powerRef.current = [];
       temperatureRef.current = [];
+      chargeStartLevel.current = null;
+      chargeStartTime.current = null;
     }
     prevCharging.current = isCharging;
   }, [isCharging, addSession]);

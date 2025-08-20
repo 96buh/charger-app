@@ -9,6 +9,7 @@ import {
   VictoryBar,
   VictoryChart,
   VictoryTheme,
+  VictoryScatter,
 } from "victory-native";
 
 import { useChargeHistory } from "@/contexts/ChargeHistoryContext";
@@ -41,6 +42,13 @@ export default function HistoryScreen() {
     }
 
     return days.map((d) => ({ x: d.slice(5), y: totals[d] || 0 }));
+  }, [history, range]);
+
+  const scatterData = useMemo(() => {
+    const cutoff = Date.now() - range * DAY_MS;
+    return history
+      .filter((s) => new Date(s.timestamp).getTime() >= cutoff)
+      .map((s) => ({ x: s.durationMin || 0, y: s.percent }));
   }, [history, range]);
 
   return (
@@ -79,15 +87,33 @@ export default function HistoryScreen() {
       {history.length === 0 ? (
         <Text style={{ textAlign: "center" }}>{i18n.t("noHistory")}</Text>
       ) : (
-        <VictoryChart
-          domainPadding={{ x: 20 }}
-          height={300}
-          theme={VictoryTheme.material}
-        >
-          <VictoryAxis tickFormat={(t) => t} />
-          <VictoryAxis dependentAxis tickFormat={(t) => `${t}%`} />
-          <VictoryBar data={chartData} style={{ data: { fill: "#4f46e5" } }} />
-        </VictoryChart>
+        <>
+          <VictoryChart
+            domainPadding={{ x: 20 }}
+            height={300}
+            theme={VictoryTheme.material}
+          >
+            <VictoryAxis tickFormat={(t) => t} />
+            <VictoryAxis dependentAxis tickFormat={(t) => `${t}%`} />
+            <VictoryBar
+              data={chartData}
+              style={{ data: { fill: "#4f46e5" } }}
+            />
+          </VictoryChart>
+          <VictoryChart
+            domainPadding={{ x: 20 }}
+            height={300}
+            theme={VictoryTheme.material}
+          >
+            <VictoryAxis label="Minutes" />
+            <VictoryAxis dependentAxis tickFormat={(t) => `${t}%`} label="%" />
+            <VictoryScatter
+              data={scatterData}
+              size={4}
+              style={{ data: { fill: "#10b981" } }}
+            />
+          </VictoryChart>
+        </>
       )}
     </SafeAreaView>
   );

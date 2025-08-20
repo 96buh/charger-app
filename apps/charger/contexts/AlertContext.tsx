@@ -1,6 +1,5 @@
 import { showMessage } from "react-native-flash-message";
 import { useSettings } from "@/contexts/SettingsContext";
-import { useBatteryData } from "@/contexts/BatteryDataContext";
 import { useHardwareData } from "@/contexts/HardwareContext";
 import { useEffect, useRef, useState, createContext, useContext } from "react";
 import * as Battery from "expo-battery";
@@ -14,9 +13,8 @@ const ALERT_SOUND = require("@/assets/sounds/alert.mp3");
 const AlertContext = createContext();
 
 export function AlertProvider({ children }) {
-  const { source, tempThreshold, language } = useSettings();
+  const { tempThreshold, language } = useSettings();
   i18n.locale = language;
-  const battery = useBatteryData();
   const hardware = useHardwareData();
   const player = useAudioPlayer(ALERT_SOUND);
   const { addLog } = useErrorLog();
@@ -104,8 +102,9 @@ export function AlertProvider({ children }) {
     }
     prevCharging.current = isCharging;
 
-    let predicted =
-      source === "local" ? battery.lstmResult : hardware.data?.predicted;
+    // let predicted =
+    //   source === "local" ? battery.lstmResult : hardware.data?.predicted;
+    const predicted = hardware.data?.predicted;
     const labelMap = {
       0: "正常",
       1: "充電線生鏽",
@@ -132,8 +131,6 @@ export function AlertProvider({ children }) {
       labelNow =
         predicted !== undefined && labelMap[predicted] !== undefined
           ? labelMap[predicted]
-          : source === "local"
-          ? "未知"
           : hardware.data?.label || "未知";
       // ★★★ 忽略「變壓器過熱」這個異常（只用溫度區間語音處理溫度）★★★
       if (labelNow === "變壓器過熱") {
@@ -145,8 +142,6 @@ export function AlertProvider({ children }) {
       labelNow =
         predicted !== undefined && labelMap[predicted] !== undefined
           ? labelMap[predicted]
-          : source === "local"
-          ? "未知"
           : hardware.data?.label || "未知";
     }
 
@@ -204,7 +199,7 @@ export function AlertProvider({ children }) {
     lastAbnormal.current = abnormalNow;
     lastLabel.current = labelNow;
     // eslint-disable-next-line
-  }, [battery.lstmResult, hardware.data?.predicted, source, isCharging]);
+  }, [hardware.data?.predicted, isCharging]);
 
   return (
     <AlertContext.Provider value={{ abnormal, label, isCharging }}>

@@ -4,21 +4,29 @@
     "slug": "charger",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/app_icon.png",
     "scheme": "charger",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.x96buh.charger"
+      "bundleIdentifier": "com.x96buh.charger",
+      "infoPlist": {
+        "UIBackgroundModes": ["fetch", "processing"]
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/adaptiive_app_icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.x96buh.charger"
+      "package": "com.x96buh.charger",
+      "foregroundService": {
+        "notificationTitle": "Charging Monitor",
+        "notificationBody": "Monitoring battery status",
+        "notificationColor": "#ffffff"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -46,7 +54,8 @@
         }
       ],
       "expo-audio",
-      "expo-localization"
+      "expo-localization",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true

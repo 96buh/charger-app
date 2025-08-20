@@ -4,7 +4,8 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  TouchableOpacity,
+  Switch,
+  ScrollView,
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Picker } from "@react-native-picker/picker";
@@ -16,8 +17,6 @@ export default function SettingsPage() {
   const {
     language,
     setLanguage,
-    source,
-    setSource,
     esp32Ip,
     setEsp32Ip,
     esp32Port,
@@ -26,49 +25,17 @@ export default function SettingsPage() {
     setEsp32Path,
     tempThreshold,
     setTempThreshold,
+    notificationsEnabled,
+    setNotificationsEnabled,
+    chargeThreshold,
+    setChargeThreshold,
   } = useSettings();
 
   i18n.locale = language;
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.header}>{i18n.t("dataSource")}</Text>
-      <View style={styles.switchRow}>
-        <TouchableOpacity
-          style={[
-            styles.switchBtn,
-            source === "local" && styles.switchBtnActive,
-          ]}
-          onPress={() => setSource("local")}
-        >
-          <Text
-            style={[
-              styles.switchText,
-              source === "local" && styles.switchTextActive,
-            ]}
-          >
-            {i18n.t("local")}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.switchBtn,
-            source === "esp32" && styles.switchBtnActive,
-          ]}
-          onPress={() => setSource("esp32")}
-        >
-          <Text
-            style={[
-              styles.switchText,
-              source === "esp32" && styles.switchTextActive,
-            ]}
-          >
-            {i18n.t("esp32")}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {source === "esp32" && (
+      <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{i18n.t("esp32Settings")}</Text>
           <Text style={styles.label}>{i18n.t("ipAddress")}</Text>
@@ -101,26 +68,49 @@ export default function SettingsPage() {
             returnKeyType="done"
           />
         </View>
-      )}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          {i18n.t("tempThreshold", { tempThreshold })}
-        </Text>
-        <Slider
-          minimumValue={30}
-          maximumValue={70}
-          step={1}
-          value={tempThreshold}
-          onValueChange={setTempThreshold}
-        />
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{i18n.t("language")}</Text>
-        <Picker selectedValue={language} onValueChange={setLanguage}>
-          <Picker.Item label={i18n.t("english") as string} value="en" />
-          <Picker.Item label={i18n.t("chinese") as string} value="zh" />
-        </Picker>
-      </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {i18n.t("tempThreshold", { tempThreshold })}
+          </Text>
+          <Slider
+            minimumValue={30}
+            maximumValue={70}
+            step={1}
+            value={tempThreshold}
+            onValueChange={setTempThreshold}
+          />
+        </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{i18n.t("notifications")}</Text>
+          <View style={styles.notifRow}>
+            <Text style={styles.label}>{i18n.t("enableNotifications")}</Text>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={setNotificationsEnabled}
+            />
+          </View>
+          <Text style={styles.sectionTitle}>
+            {i18n.t("chargeThreshold", {
+              chargeThreshold: Math.round(chargeThreshold * 100),
+            })}
+          </Text>
+          <Slider
+            minimumValue={0.5}
+            maximumValue={1}
+            step={0.01}
+            value={chargeThreshold}
+            onValueChange={setChargeThreshold}
+          />
+        </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{i18n.t("language")}</Text>
+          <Picker selectedValue={language} onValueChange={setLanguage}>
+            <Picker.Item label={i18n.t("english") as string} value="en" />
+            <Picker.Item label={i18n.t("chinese") as string} value="zh" />
+          </Picker>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -129,41 +119,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+  content: {
     paddingHorizontal: 20,
     paddingTop: 8,
-  },
-  header: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 20,
-    marginTop: 10,
-    letterSpacing: 1,
-    color: "#222b55",
-  },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 20,
-    gap: 16,
-  },
-  switchBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 28,
-    borderRadius: 10,
-    backgroundColor: "#ececec",
-    elevation: 2,
-  },
-  switchBtnActive: {
-    backgroundColor: "#5c6bc0",
-  },
-  switchText: {
-    fontSize: 16,
-    color: "#888",
-    fontWeight: "bold",
-    letterSpacing: 1,
-  },
-  switchTextActive: {
-    color: "#fff",
+    paddingBottom: 20,
   },
   section: {
     marginTop: 30,
@@ -171,6 +131,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: "#f5f5f5",
     elevation: 1,
+  },
+  notifRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
   },
   sectionTitle: {
     fontWeight: "bold",
