@@ -5,6 +5,7 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
+  Switch,
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Picker } from "@react-native-picker/picker";
@@ -26,6 +27,10 @@ export default function SettingsPage() {
     setEsp32Path,
     tempThreshold,
     setTempThreshold,
+    notificationsEnabled,
+    setNotificationsEnabled,
+    chargeThreshold,
+    setChargeThreshold,
   } = useSettings();
 
   i18n.locale = language;
@@ -115,6 +120,28 @@ export default function SettingsPage() {
         />
       </View>
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{i18n.t("notifications")}</Text>
+        <View style={styles.notifRow}>
+          <Text style={styles.label}>{i18n.t("enableNotifications")}</Text>
+          <Switch
+            value={notificationsEnabled}
+            onValueChange={setNotificationsEnabled}
+          />
+        </View>
+        <Text style={styles.sectionTitle}>
+          {i18n.t("chargeThreshold", {
+            chargeThreshold: Math.round(chargeThreshold * 100),
+          })}
+        </Text>
+        <Slider
+          minimumValue={0.5}
+          maximumValue={1}
+          step={0.01}
+          value={chargeThreshold}
+          onValueChange={setChargeThreshold}
+        />
+      </View>
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>{i18n.t("language")}</Text>
         <Picker selectedValue={language} onValueChange={setLanguage}>
           <Picker.Item label={i18n.t("english") as string} value="en" />
@@ -171,6 +198,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: "#f5f5f5",
     elevation: 1,
+  },
+  notifRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
   },
   sectionTitle: {
     fontWeight: "bold",

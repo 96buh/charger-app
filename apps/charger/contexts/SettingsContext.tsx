@@ -13,6 +13,8 @@ export function SettingsProvider({ children }) {
   const [esp32Port, setEsp32Port] = useState("8080");
   const [esp32Path, setEsp32Path] = useState("/get_result");
   const [tempThreshold, setTempThreshold] = useState(40);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [chargeThreshold, setChargeThreshold] = useState(0.9);
 
   // 自動載入與保存設定到本地
   useEffect(() => {
@@ -24,6 +26,10 @@ export function SettingsProvider({ children }) {
         if (s.esp32Port) setEsp32Port(s.esp32Port);
         if (s.esp32Path) setEsp32Path(s.esp32Path);
         if (s.tempThreshold !== undefined) setTempThreshold(s.tempThreshold);
+        if (s.notificationsEnabled !== undefined)
+          setNotificationsEnabled(s.notificationsEnabled);
+        if (s.chargeThreshold !== undefined)
+          setChargeThreshold(s.chargeThreshold);
         if (s.language) setLanguage(s.language);
       }
     });
@@ -39,9 +45,20 @@ export function SettingsProvider({ children }) {
         esp32Port,
         esp32Path,
         tempThreshold,
+        notificationsEnabled,
+        chargeThreshold,
       })
     );
-  }, [language, source, esp32Ip, esp32Port, esp32Path, tempThreshold]);
+  }, [
+    language,
+    source,
+    esp32Ip,
+    esp32Port,
+    esp32Path,
+    tempThreshold,
+    notificationsEnabled,
+    chargeThreshold,
+  ]);
 
   return (
     <SettingsContext.Provider
@@ -58,6 +75,10 @@ export function SettingsProvider({ children }) {
         setEsp32Path,
         tempThreshold,
         setTempThreshold,
+        notificationsEnabled,
+        setNotificationsEnabled,
+        chargeThreshold,
+        setChargeThreshold,
       }}
     >
       {children}
