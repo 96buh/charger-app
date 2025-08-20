@@ -1,5 +1,5 @@
 import * as TaskManager from "expo-task-manager";
-import * as BackgroundFetch from "expo-background-fetch";
+import * as BackgroundTask from "expo-background-task";
 import * as Battery from "expo-battery";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -11,10 +11,11 @@ TaskManager.defineTask(BACKGROUND_MONITOR_TASK, async () => {
     const raw = await AsyncStorage.getItem("app_settings");
     const settings = raw ? JSON.parse(raw) : {};
     if (!settings.notificationsEnabled) {
-      return BackgroundFetch.Result.NoData;
+      return BackgroundTask.BackgroundTaskResult.Success;
     }
 
-    const power = (await Battery.getPowerStateAsync()) as any;
+    type PowerState = Battery.PowerState & { batteryTemperature?: number };
+    const power = (await Battery.getPowerStateAsync()) as PowerState;
     const batteryLevel = power?.batteryLevel ?? 0;
     const batteryState = power?.batteryState;
     const temperature = power?.batteryTemperature;
@@ -32,7 +33,7 @@ TaskManager.defineTask(BACKGROUND_MONITOR_TASK, async () => {
         },
         trigger: null,
       });
-      return BackgroundFetch.Result.NewData;
+      return BackgroundTask.BackgroundTaskResult.Success;
     }
 
     if (temperature != null && temperature > tempThreshold) {
@@ -43,12 +44,12 @@ TaskManager.defineTask(BACKGROUND_MONITOR_TASK, async () => {
         },
         trigger: null,
       });
-      return BackgroundFetch.Result.NewData;
+      return BackgroundTask.BackgroundTaskResult.Success;
     }
 
-    return BackgroundFetch.Result.NoData;
+    return BackgroundTask.BackgroundTaskResult.Success;
   } catch (e) {
-    return BackgroundFetch.Result.Failed;
+    return BackgroundTask.BackgroundTaskResult.Failed;
   }
 });
 
@@ -57,10 +58,9 @@ export async function registerBackgroundMonitor() {
     BACKGROUND_MONITOR_TASK
   );
   if (!isRegistered) {
-    await BackgroundFetch.registerTaskAsync(BACKGROUND_MONITOR_TASK, {
-      minimumInterval: 60 * 15,
-      stopOnTerminate: false,
-      startOnBoot: true,
+    await BackgroundTask.registerTaskAsync(BACKGROUND_MONITOR_TASK, {
+      // run roughly every 15 minutes
+      minimumInterval: 15,
     });
   }
 }

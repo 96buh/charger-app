@@ -23,7 +23,6 @@
     "eas-cli": "^16.9.0",
     "expo": "~53.0.10",
     "expo-audio": "~0.4.7",
-    "expo-background-fetch": "~13.1.6",
     "expo-background-task": "^0.2.8",
     "expo-battery": "~9.1.4",
     "expo-blur": "~14.1.5",
