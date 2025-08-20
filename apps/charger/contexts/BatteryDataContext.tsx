@@ -9,6 +9,7 @@ import { requireNativeModule } from "expo-modules-core";
 import { type BatteryStats } from "@/utils/types";
 import * as ort from "onnxruntime-react-native";
 import * as FileSystem from "expo-file-system";
+import { useHardwareData } from "@/contexts/HardwareContext";
 
 const Battery = requireNativeModule("Mybattery");
 const WINDOW_SEC = 30;
@@ -39,6 +40,7 @@ const BatteryDataContext = createContext<BatteryDataContextProps | undefined>(
 export const BatteryDataProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const { isCharging } = useHardwareData();
   const [stats, setStats] = useState<BatteryStats | null>(null);
 
   const [currentList, setCurrentList] = useState<number[]>(
@@ -58,9 +60,25 @@ export const BatteryDataProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     let isMounted = true;
     const fetchStats = async () => {
+      const defaultStats: BatteryStats = {
+        current_mA: 0,
+        voltage_mV: 0,
+        temperature_C: 0,
+        power_W: 0,
+      };
+
+      if (!isCharging) {
+        if (isMounted) setStats(defaultStats);
+        return;
+      }
+
       try {
         const s: BatteryStats = await Battery.getStats();
         if (!isMounted) return;
+        if (!s) {
+          setStats(defaultStats);
+          return;
+        }
         setStats(s);
 
         const currentA = Math.abs(s.current_mA) / 1000;
@@ -74,6 +92,7 @@ export const BatteryDataProvider: React.FC<{ children: React.ReactNode }> = ({
         setTemperatureList((prev) => [...prev.slice(1), temperatureC]);
       } catch (e) {
         // 可以加錯誤 log
+        if (isMounted) setStats(defaultStats);
       }
     };
     fetchStats();
@@ -82,7 +101,7 @@ export const BatteryDataProvider: React.FC<{ children: React.ReactNode }> = ({
       isMounted = false;
       clearInterval(id);
     };
-  }, []);
+  }, [isCharging]);
 
   // 機器學習模型推論
   const [lstmResult, setLstmResult] = useState<number | null>(null);

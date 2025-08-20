@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Switch,
+  ScrollView,
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Picker } from "@react-native-picker/picker";
@@ -37,117 +38,120 @@ export default function SettingsPage() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.header}>{i18n.t("dataSource")}</Text>
-      <View style={styles.switchRow}>
-        <TouchableOpacity
-          style={[
-            styles.switchBtn,
-            source === "local" && styles.switchBtnActive,
-          ]}
-          onPress={() => setSource("local")}
-        >
-          <Text
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.header}>{i18n.t("dataSource")}</Text>
+        <View style={styles.switchRow}>
+          <TouchableOpacity
             style={[
-              styles.switchText,
-              source === "local" && styles.switchTextActive,
+              styles.switchBtn,
+              source === "local" && styles.switchBtnActive,
             ]}
+            onPress={() => setSource("local")}
           >
-            {i18n.t("local")}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.switchBtn,
-            source === "esp32" && styles.switchBtnActive,
-          ]}
-          onPress={() => setSource("esp32")}
-        >
-          <Text
+            <Text
+              style={[
+                styles.switchText,
+                source === "local" && styles.switchTextActive,
+              ]}
+            >
+              {i18n.t("local")}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[
-              styles.switchText,
-              source === "esp32" && styles.switchTextActive,
+              styles.switchBtn,
+              source === "esp32" && styles.switchBtnActive,
             ]}
+            onPress={() => setSource("esp32")}
           >
-            {i18n.t("esp32")}
-          </Text>
-        </TouchableOpacity>
-      </View>
+            <Text
+              style={[
+                styles.switchText,
+                source === "esp32" && styles.switchTextActive,
+              ]}
+            >
+              {i18n.t("esp32")}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      {source === "esp32" && (
+        {source === "esp32" && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{i18n.t("esp32Settings")}</Text>
+            <Text style={styles.label}>{i18n.t("ipAddress")}</Text>
+            <TextInput
+              value={esp32Ip}
+              onChangeText={setEsp32Ip}
+              placeholder={i18n.t("exampleIp")}
+              keyboardType="numeric"
+              style={styles.input}
+              returnKeyType="next"
+            />
+
+            <Text style={styles.label}>{i18n.t("port")}</Text>
+            <TextInput
+              value={esp32Port}
+              onChangeText={setEsp32Port}
+              placeholder={i18n.t("defaultPort")}
+              keyboardType="numeric"
+              style={styles.input}
+              returnKeyType="next"
+            />
+
+            <Text style={styles.label}>{i18n.t("apiPath")}</Text>
+            <TextInput
+              value={esp32Path}
+              onChangeText={setEsp32Path}
+              placeholder="/get_result"
+              style={styles.input}
+              autoCapitalize="none"
+              returnKeyType="done"
+            />
+          </View>
+        )}
+
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{i18n.t("esp32Settings")}</Text>
-          <Text style={styles.label}>{i18n.t("ipAddress")}</Text>
-          <TextInput
-            value={esp32Ip}
-            onChangeText={setEsp32Ip}
-            placeholder={i18n.t("exampleIp")}
-            keyboardType="numeric"
-            style={styles.input}
-            returnKeyType="next"
-          />
-
-          <Text style={styles.label}>{i18n.t("port")}</Text>
-          <TextInput
-            value={esp32Port}
-            onChangeText={setEsp32Port}
-            placeholder={i18n.t("defaultPort")}
-            keyboardType="numeric"
-            style={styles.input}
-            returnKeyType="next"
-          />
-
-          <Text style={styles.label}>{i18n.t("apiPath")}</Text>
-          <TextInput
-            value={esp32Path}
-            onChangeText={setEsp32Path}
-            placeholder="/get_result"
-            style={styles.input}
-            autoCapitalize="none"
-            returnKeyType="done"
+          <Text style={styles.sectionTitle}>
+            {i18n.t("tempThreshold", { tempThreshold })}
+          </Text>
+          <Slider
+            minimumValue={30}
+            maximumValue={70}
+            step={1}
+            value={tempThreshold}
+            onValueChange={setTempThreshold}
           />
         </View>
-      )}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          {i18n.t("tempThreshold", { tempThreshold })}
-        </Text>
-        <Slider
-          minimumValue={30}
-          maximumValue={70}
-          step={1}
-          value={tempThreshold}
-          onValueChange={setTempThreshold}
-        />
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{i18n.t("notifications")}</Text>
-        <View style={styles.notifRow}>
-          <Text style={styles.label}>{i18n.t("enableNotifications")}</Text>
-          <Switch
-            value={notificationsEnabled}
-            onValueChange={setNotificationsEnabled}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{i18n.t("notifications")}</Text>
+          <View style={styles.notifRow}>
+            <Text style={styles.label}>{i18n.t("enableNotifications")}</Text>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={setNotificationsEnabled}
+            />
+          </View>
+          <Text style={styles.sectionTitle}>
+            {i18n.t("chargeThreshold", {
+              chargeThreshold: Math.round(chargeThreshold * 100),
+            })}
+          </Text>
+          <Slider
+            minimumValue={0.5}
+            maximumValue={1}
+            step={0.01}
+            value={chargeThreshold}
+            onValueChange={setChargeThreshold}
           />
         </View>
-        <Text style={styles.sectionTitle}>
-          {i18n.t("chargeThreshold", {
-            chargeThreshold: Math.round(chargeThreshold * 100),
-          })}
-        </Text>
-        <Slider
-          minimumValue={0.5}
-          maximumValue={1}
-          step={0.01}
-          value={chargeThreshold}
-          onValueChange={setChargeThreshold}
-        />
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{i18n.t("language")}</Text>
-        <Picker selectedValue={language} onValueChange={setLanguage}>
-          <Picker.Item label={i18n.t("english") as string} value="en" />
-          <Picker.Item label={i18n.t("chinese") as string} value="zh" />
-        </Picker>
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{i18n.t("language")}</Text>
+          <Picker selectedValue={language} onValueChange={setLanguage}>
+            <Picker.Item label={i18n.t("english") as string} value="en" />
+            <Picker.Item label={i18n.t("chinese") as string} value="zh" />
+          </Picker>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -156,8 +160,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+  content: {
     paddingHorizontal: 20,
     paddingTop: 8,
+    paddingBottom: 20,
   },
   header: {
     fontSize: 22,
