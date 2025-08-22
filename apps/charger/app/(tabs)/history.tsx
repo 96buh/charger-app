@@ -1,5 +1,12 @@
 import React, { useMemo, useState } from "react";
-import { Button, View, Text, Pressable, StyleSheet } from "react-native";
+import {
+  Button,
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  FlatList,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSettings } from "@/contexts/SettingsContext";
 import i18n from "@/utils/i18n";
@@ -12,7 +19,10 @@ import {
   VictoryScatter,
 } from "victory-native";
 
-import { useChargeHistory } from "@/contexts/ChargeHistoryContext";
+import {
+  useChargeHistory,
+  ChargeSession,
+} from "@/contexts/ChargeHistoryContext";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -21,6 +31,7 @@ export default function HistoryScreen() {
   const { language } = useSettings();
   i18n.locale = language;
   const [range, setRange] = useState<7 | 30>(7);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const chartData = useMemo(() => {
     const cutoff = Date.now() - range * DAY_MS;
@@ -50,6 +61,33 @@ export default function HistoryScreen() {
       .filter((s) => new Date(s.timestamp).getTime() >= cutoff)
       .map((s) => ({ x: s.durationMin || 0, y: s.percent }));
   }, [history, range]);
+
+  const sortedHistory = useMemo(
+    () =>
+      [...history].sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      ),
+    [history]
+  );
+
+  const renderItem = ({ item }: { item: ChargeSession }) => (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => setSelectedId(item.id)}
+      style={[
+        styles.recordItem,
+        selectedId === item.id && styles.recordItemActive,
+      ]}
+    >
+      <Text style={styles.recordDate}>
+        {new Date(item.timestamp).toLocaleString()}
+      </Text>
+      <Text style={styles.recordDetails}>
+        {item.percent}% · {item.durationMin}m
+      </Text>
+    </Pressable>
+  );
 
   return (
     <SafeAreaView style={{ flex: 1, padding: 16 }}>
@@ -113,6 +151,13 @@ export default function HistoryScreen() {
               style={{ data: { fill: "#10b981" } }}
             />
           </VictoryChart>
+          <FlatList
+            data={sortedHistory}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            style={{ marginTop: 16 }}
+            extraData={selectedId}
+          />
         </>
       )}
     </SafeAreaView>
@@ -143,5 +188,20 @@ const styles = StyleSheet.create({
   },
   rangeTextActive: {
     color: "#fff",
+  },
+  recordItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  recordItemActive: {
+    backgroundColor: "#e0e7ff",
+  },
+  recordDate: {
+    fontWeight: "500",
+  },
+  recordDetails: {
+    color: "#374151",
   },
 });
