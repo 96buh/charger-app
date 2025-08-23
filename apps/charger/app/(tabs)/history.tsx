@@ -11,13 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useSettings } from "@/contexts/SettingsContext";
 import i18n from "@/utils/i18n";
 
-import {
-  VictoryAxis,
-  VictoryBar,
-  VictoryChart,
-  VictoryTheme,
-  VictoryScatter,
-} from "victory-native";
+import { CartesianChart, Bar, Scatter } from "victory-native";
 
 import {
   useChargeHistory,
@@ -126,31 +120,40 @@ export default function HistoryScreen() {
         <Text style={{ textAlign: "center" }}>{i18n.t("noHistory")}</Text>
       ) : (
         <>
-          <VictoryChart
-            domainPadding={{ x: 20 }}
-            height={300}
-            theme={VictoryTheme.material}
-          >
-            <VictoryAxis tickFormat={(t) => t} />
-            <VictoryAxis dependentAxis tickFormat={(t) => `${t}%`} />
-            <VictoryBar
+          <View style={{ height: 300 }}>
+            <CartesianChart
+              style={{ flex: 1 }}
               data={chartData}
-              style={{ data: { fill: "#4f46e5" } }}
-            />
-          </VictoryChart>
-          <VictoryChart
-            domainPadding={{ x: 20 }}
-            height={300}
-            theme={VictoryTheme.material}
-          >
-            <VictoryAxis label="Minutes" />
-            <VictoryAxis dependentAxis tickFormat={(t) => `${t}%`} label="%" />
-            <VictoryScatter
+              xKey="x"
+              yKeys={["y"]}
+              padding={20}
+              domainPadding={{ top: 20, left: 20, right: 20 }}
+              axisOptions={{
+                formatXLabel: (t) => t,
+                formatYLabel: (t) => `${t}%`,
+              }}
+            >
+              {({ points }) => <Bar points={points.y} color="#4f46e5" />}
+            </CartesianChart>
+          </View>
+          <View style={{ height: 300 }}>
+            <CartesianChart
+              style={{ flex: 1 }}
               data={scatterData}
-              size={4}
-              style={{ data: { fill: "#10b981" } }}
-            />
-          </VictoryChart>
+              xKey="x"
+              yKeys={["y"]}
+              padding={20}
+              domainPadding={{ top: 20, left: 20, right: 20 }}
+              axisOptions={{
+                formatXLabel: (t) => `${t}`,
+                formatYLabel: (t) => `${t}%`,
+              }}
+            >
+              {({ points }) => (
+                <Scatter points={points.y} color="#10b981" radius={4} />
+              )}
+            </CartesianChart>
+          </View>
           <FlatList
             data={sortedHistory}
             keyExtractor={(item) => item.id}

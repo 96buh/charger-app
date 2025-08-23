@@ -2,7 +2,6 @@ import { showMessage } from "react-native-flash-message";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useHardwareData } from "@/contexts/HardwareContext";
 import { useEffect, useRef, useState, createContext, useContext } from "react";
-import * as Battery from "expo-battery";
 import { useAudioPlayer } from "expo-audio";
 import * as Speech from "expo-speech";
 import { useErrorLog } from "@/contexts/ErrorLogContext";
@@ -15,36 +14,16 @@ const AlertContext = createContext();
 export function AlertProvider({ children }) {
   const { tempThreshold, language } = useSettings();
   i18n.locale = language;
-  const hardware = useHardwareData();
+  const { data: hardware, isCharging } = useHardwareData();
   const player = useAudioPlayer(ALERT_SOUND);
   const { addLog } = useErrorLog();
 
-  const [isCharging, setIsCharging] = useState(null);
   const [abnormal, setAbnormal] = useState(false);
   const [label, setLabel] = useState("");
   const lastAbnormal = useRef(false);
   const lastLabel = useRef("");
   const timeoutRef = useRef(null);
   const prevCharging = useRef(isCharging);
-
-  // ============ 監聽手機充電狀態 ============
-  useEffect(() => {
-    const subscription = Battery.addBatteryStateListener(({ batteryState }) => {
-      setIsCharging(
-        batteryState === Battery.BatteryState.CHARGING ||
-          batteryState === Battery.BatteryState.FULL
-      );
-    });
-
-    Battery.getBatteryStateAsync().then((batteryState) => {
-      setIsCharging(
-        batteryState === Battery.BatteryState.CHARGING ||
-          batteryState === Battery.BatteryState.FULL
-      );
-    });
-
-    return () => subscription.remove();
-  }, []);
 
   // ========= 播報異常語音 ========
   const speakAlert = (text: string) => {
@@ -68,7 +47,7 @@ export function AlertProvider({ children }) {
   // ========== 溫度閾值通知 ==========
   const lastAlertedTemp = useRef(false);
   useEffect(() => {
-    const temp = hardware.data?.stats?.temperature_C ?? null;
+    const temp = hardware?.stats?.temperature_C ?? null;
     if (temp !== null && tempThreshold !== null) {
       if (temp >= tempThreshold) {
         if (!lastAlertedTemp.current) {
@@ -92,7 +71,7 @@ export function AlertProvider({ children }) {
         lastAlertedTemp.current = false;
       }
     }
-  }, [hardware.data?.stats?.temperature_C, tempThreshold]);
+  }, [hardware?.stats?.temperature_C, tempThreshold]);
 
   // ========== 一般異常判斷與通知 ==========
   useEffect(() => {
@@ -104,7 +83,7 @@ export function AlertProvider({ children }) {
 
     // let predicted =
     //   source === "local" ? battery.lstmResult : hardware.data?.predicted;
-    const predicted = hardware.data?.predicted;
+    const predicted = hardware?.predicted;
     const labelMap = {
       0: "正常",
       1: "充電線生鏽",
@@ -131,7 +110,7 @@ export function AlertProvider({ children }) {
       labelNow =
         predicted !== undefined && labelMap[predicted] !== undefined
           ? labelMap[predicted]
-          : hardware.data?.label || "未知";
+          : hardware?.label || "未知";
       // ★★★ 忽略「變壓器過熱」這個異常（只用溫度區間語音處理溫度）★★★
       if (labelNow === "變壓器過熱") {
         abnormalNow = false;
@@ -142,7 +121,7 @@ export function AlertProvider({ children }) {
       labelNow =
         predicted !== undefined && labelMap[predicted] !== undefined
           ? labelMap[predicted]
-          : hardware.data?.label || "未知";
+          : hardware?.label || "未知";
     }
 
     const labelKeyMap: Record<string, string> = {
@@ -199,7 +178,7 @@ export function AlertProvider({ children }) {
     lastAbnormal.current = abnormalNow;
     lastLabel.current = labelNow;
     // eslint-disable-next-line
-  }, [hardware.data?.predicted, isCharging]);
+  }, [hardware?.predicted, isCharging]);
 
   return (
     <AlertContext.Provider value={{ abnormal, label, isCharging }}>
