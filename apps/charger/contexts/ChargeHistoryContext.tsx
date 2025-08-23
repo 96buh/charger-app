@@ -33,6 +33,7 @@ export const ChargeHistoryProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [history, setHistory] = useState<ChargeSession[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
   // Load stored sessions on mount
   useEffect(() => {
@@ -47,12 +48,15 @@ export const ChargeHistoryProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       } catch (e) {
         console.warn("Failed to load charge history", e);
+      } finally {
+        setHydrated(true);
       }
     })();
   }, []);
 
   // Persist whenever history changes
   useEffect(() => {
+    if (!hydrated) return;
     if (history.length > 0) {
       AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(history)).catch((e) =>
         console.warn("Failed to save charge history", e)
@@ -62,7 +66,7 @@ export const ChargeHistoryProvider: React.FC<{ children: React.ReactNode }> = ({
         console.warn("Failed to clear charge history", e)
       );
     }
-  }, [history]);
+  }, [history, hydrated]);
 
   const addSession = useCallback((session: ChargeSession) => {
     setHistory((prev) => [...prev, session]);

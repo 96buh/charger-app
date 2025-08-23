@@ -58,6 +58,7 @@ export function HardwareDataProvider({ children }) {
 
   // 充電狀態 (本 context 自己監控，不相依 AlertContext)
   const [isCharging, setIsCharging] = useState<boolean | null>(null);
+  const batteryLevelRef = useRef<number | null>(null);
 
   useEffect(() => {
     const subscription = Battery.addBatteryStateListener(({ batteryState }) => {
@@ -77,6 +78,21 @@ export function HardwareDataProvider({ children }) {
     return () => subscription.remove();
   }, []);
 
+  useEffect(() => {
+    const updateLevel = (level: number | null) => {
+      if (level != null) {
+        batteryLevelRef.current = level;
+      }
+    };
+
+    Battery.getBatteryLevelAsync().then(updateLevel);
+    const levelSub = Battery.addBatteryLevelListener(({ batteryLevel }) => {
+      updateLevel(batteryLevel);
+    });
+
+    return () => levelSub.remove();
+  }, []);
+
   // 用ref存最近30筆資料
   const currentRef = useRef<number[]>([]);
   const voltageRef = useRef<number[]>([]);
@@ -93,30 +109,25 @@ export function HardwareDataProvider({ children }) {
   useEffect(() => {
     if (isCharging && !prevCharging.current) {
       // 開始充電時記錄電量
-      Battery.getBatteryLevelAsync().then((level) => {
-        chargeStartLevel.current = level;
-        chargeStartTime.current = Date.now();
-      });
+      chargeStartLevel.current = batteryLevelRef.current;
+      chargeStartTime.current = Date.now();
     }
     if (prevCharging.current && !isCharging) {
       // 結束充電時計算充電百分比並記錄
-      Battery.getBatteryLevelAsync().then((level) => {
-        const startLevel = chargeStartLevel.current;
-        const startTime = chargeStartTime.current;
-        if (startLevel != null && level != null && startTime != null) {
-          const diff = (level - startLevel) * 100;
-          const durationMin = (Date.now() - startTime) / 60000;
-          if (diff > 0) {
-            const session: ChargeSession = {
-              id: Date.now().toString(),
-              timestamp: new Date().toISOString(),
-              percent: Number(diff.toFixed(2)),
-              durationMin: Number(durationMin.toFixed(2)),
-            };
-            addSession(session);
-          }
-        }
-      });
+      const level = batteryLevelRef.current;
+      const startLevel = chargeStartLevel.current;
+      const startTime = chargeStartTime.current;
+      if (startLevel != null && level != null && startTime != null) {
+        const diff = (level - startLevel) * 100;
+        const durationMin = (Date.now() - startTime) / 60000;
+        const session: ChargeSession = {
+          id: Date.now().toString(),
+          timestamp: new Date().toISOString(),
+          percent: Math.max(0, Number(diff.toFixed(2))),
+          durationMin: Number(durationMin.toFixed(2)),
+        };
+        addSession(session);
+      }
 
       currentRef.current = [];
       voltageRef.current = [];

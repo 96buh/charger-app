@@ -84,85 +84,102 @@ export default function HistoryScreen() {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, padding: 16 }}>
-      <View style={styles.rangePicker}>
-        <Pressable
-          accessibilityRole="button"
-          style={[styles.rangeOption, range === 7 && styles.rangeOptionActive]}
-          onPress={() => setRange(7)}
-        >
-          <Text
-            style={[styles.rangeText, range === 7 && styles.rangeTextActive]}
-          >
-            {i18n.t("days7")}
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          style={[styles.rangeOption, range === 30 && styles.rangeOptionActive]}
-          onPress={() => setRange(30)}
-        >
-          <Text
-            style={[styles.rangeText, range === 30 && styles.rangeTextActive]}
-          >
-            {i18n.t("days30")}
-          </Text>
-        </Pressable>
-      </View>
-      <View style={{ marginBottom: 16, alignItems: "center" }}>
-        <Button
-          title={i18n.t("clearHistory")}
-          onPress={clearHistory}
-          disabled={history.length === 0}
-        />
-      </View>
-      {history.length === 0 ? (
-        <Text style={{ textAlign: "center" }}>{i18n.t("noHistory")}</Text>
-      ) : (
-        <>
-          <View style={{ height: 300 }}>
-            <CartesianChart
-              style={{ flex: 1 }}
-              data={chartData}
-              xKey="x"
-              yKeys={["y"]}
-              padding={20}
-              domainPadding={{ top: 20, left: 20, right: 20 }}
-              axisOptions={{
-                formatXLabel: (t) => t,
-                formatYLabel: (t) => `${t}%`,
-              }}
-            >
-              {({ points }) => <Bar points={points.y} color="#4f46e5" />}
-            </CartesianChart>
-          </View>
-          <View style={{ height: 300 }}>
-            <CartesianChart
-              style={{ flex: 1 }}
-              data={scatterData}
-              xKey="x"
-              yKeys={["y"]}
-              padding={20}
-              domainPadding={{ top: 20, left: 20, right: 20 }}
-              axisOptions={{
-                formatXLabel: (t) => `${t}`,
-                formatYLabel: (t) => `${t}%`,
-              }}
-            >
-              {({ points }) => (
-                <Scatter points={points.y} color="#10b981" radius={4} />
-              )}
-            </CartesianChart>
-          </View>
-          <FlatList
-            data={sortedHistory}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            style={{ marginTop: 16 }}
-            extraData={selectedId}
-          />
-        </>
-      )}
+    <SafeAreaView style={{ flex: 1 }}>
+      <FlatList
+        data={sortedHistory}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        extraData={selectedId}
+        contentContainerStyle={{ padding: 16 }}
+        ListHeaderComponent={
+          <>
+            <View style={styles.rangePicker}>
+              <Pressable
+                accessibilityRole="button"
+                style={[
+                  styles.rangeOption,
+                  range === 7 && styles.rangeOptionActive,
+                ]}
+                onPress={() => setRange(7)}
+              >
+                <Text
+                  style={[
+                    styles.rangeText,
+                    range === 7 && styles.rangeTextActive,
+                  ]}
+                >
+                  {i18n.t("days7")}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={[
+                  styles.rangeOption,
+                  range === 30 && styles.rangeOptionActive,
+                ]}
+                onPress={() => setRange(30)}
+              >
+                <Text
+                  style={[
+                    styles.rangeText,
+                    range === 30 && styles.rangeTextActive,
+                  ]}
+                >
+                  {i18n.t("days30")}
+                </Text>
+              </Pressable>
+            </View>
+            <View style={{ marginBottom: 16, alignItems: "center" }}>
+              <Button
+                title={i18n.t("clearHistory")}
+                onPress={clearHistory}
+                disabled={history.length === 0}
+              />
+            </View>
+            {history.length === 0 ? (
+              <Text style={{ textAlign: "center" }}>{i18n.t("noHistory")}</Text>
+            ) : (
+              <>
+                <View style={{ height: 300 }}>
+                  <CartesianChart
+                    style={{ flex: 1 }}
+                    data={chartData}
+                    xKey="x"
+                    yKeys={["y"]}
+                    padding={20}
+                    domainPadding={{ top: 20, left: 20, right: 20 }}
+                    axisOptions={{
+                      formatXLabel: (t) => t,
+                      formatYLabel: (t) => `${t}%`,
+                    }}
+                  >
+                    {({ points }) => <Bar points={points.y} color="#4f46e5" />}
+                  </CartesianChart>
+                </View>
+                <View style={{ height: 300 }}>
+                  <CartesianChart
+                    style={{ flex: 1 }}
+                    data={scatterData}
+                    xKey="x"
+                    yKeys={["y"]}
+                    padding={20}
+                    domainPadding={{ top: 20, left: 20, right: 20 }}
+                    axisOptions={{
+                      formatXLabel: (t) => `${t}`,
+                      formatYLabel: (t) => `${t}%`,
+                    }}
+                  >
+                    {({ points }) => (
+                      <Scatter points={points.y} color="#10b981" radius={4} />
+                    )}
+                  </CartesianChart>
+                </View>
+              </>
+            )}
+          </>
+        }
+        ListEmptyComponent={<></>}
+      />
     </SafeAreaView>
   );
 }
