@@ -15,6 +15,8 @@ export interface ChargeSession {
   /** Percentage of battery added during the session (0-100) */
   percent: number;
   durationMin: number;
+  startPercent: number;
+  endPercent: number;
 }
 
 interface ChargeHistoryContextProps {

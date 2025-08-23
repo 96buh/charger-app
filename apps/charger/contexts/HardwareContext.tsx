@@ -125,6 +125,8 @@ export function HardwareDataProvider({ children }) {
           timestamp: new Date().toISOString(),
           percent: Math.max(0, Number(diff.toFixed(2))),
           durationMin: Number(durationMin.toFixed(2)),
+          startPercent: Number((startLevel * 100).toFixed(2)),
+          endPercent: Number((level * 100).toFixed(2)),
         };
         addSession(session);
       }

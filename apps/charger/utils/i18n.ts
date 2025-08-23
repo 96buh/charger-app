@@ -35,6 +35,9 @@ const translations = {
     days30: "30 days",
     clearHistory: "Clear History",
     noHistory: "No charge records",
+    chargeDuration: "Charge time %{min} minutes",
+    fromToPercent: "From %{from}% to %{to}%",
+    cumulativeAxisInfo: "X: Date  Y: Charge %",
     hours24: "24 hours",
     custom: "Custom",
     all: "All",
@@ -54,6 +57,8 @@ const translations = {
     notifications: "Notifications",
     enableNotifications: "Enable notifications",
     chargeThreshold: "Notify when charge reaches %{chargeThreshold}%",
+    legendMinutes: "Charge time (minutes)",
+    legendPercent: "Charge gained (%)",
   },
   zh: {
     dataSource: "資料來源",
@@ -88,6 +93,9 @@ const translations = {
     days30: "30天",
     clearHistory: "清除紀錄",
     noHistory: "沒有充電記錄",
+    chargeDuration: "充電時間%{min}分鐘",
+    fromToPercent: "從%{from}到%{to}%",
+    cumulativeAxisInfo: "X：日期  Y：充電百分比",
     hours24: "24小時",
     custom: "自訂",
     all: "全部",
@@ -107,6 +115,8 @@ const translations = {
     notifications: "通知",
     enableNotifications: "啟用通知",
     chargeThreshold: "充電達 %{chargeThreshold}% 提醒",
+    legendMinutes: "充電時間 (分鐘)",
+    legendPercent: "充電量 (%)",
   },
 };
 
