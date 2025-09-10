@@ -11,22 +11,31 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useSettings } from "@/contexts/SettingsContext";
 import i18n from "@/utils/i18n";
 
-import { CartesianChart, BarGroup, useChartPressState } from "victory-native";
-import { useDevClock, DAY_MS as DAY_MS_UTIL } from "@/utils/devClock";
+import { CartesianChart, Bar, BarGroup, useChartPressState } from "victory-native";
+import { useDevClock, DAY_MS } from "@/utils/devClock";
 import DevClockControls from "@/components/DevClockControl";
-import Animated, { useDerivedValue, runOnJS } from "react-native-reanimated";
+import { useDerivedValue, runOnJS } from "react-native-reanimated";
 
 import {
   useChargeHistory,
   ChargeSession,
 } from "@/contexts/ChargeHistoryContext";
+import { useHardwareData } from "@/contexts/HardwareContext";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+function localIsoDate(ms: number) {
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 export default function HistoryScreen() {
   const { history, clearHistory } = useChargeHistory();
   const { language } = useSettings();
   i18n.locale = language;
+  const { activeSession } = useHardwareData();
 
   const [range, setRange] = useState<7 | 30>(7);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -42,11 +51,18 @@ export default function HistoryScreen() {
     for (const s of history) {
       const ts = new Date(s.timestamp).getTime();
       if (ts >= cutoff) {
-        const key = new Date(ts).toISOString().split("T")[0]; // YYYY-MM-DD
+        const key = localIsoDate(ts);
         if (!totals[key]) totals[key] = { minutes: 0, percent: 0 };
         totals[key].minutes += s.durationMin || 0;
         totals[key].percent += s.percent || 0;
       }
+    }
+    // 納入進行中的 session（即時）
+    if (activeSession) {
+      const iso = localIsoDate(nowMs);
+      if (!totals[iso]) totals[iso] = { minutes: 0, percent: 0 };
+      totals[iso].minutes += activeSession.liveDurationMin || 0;
+      totals[iso].percent += activeSession.livePercent || 0;
     }
 
     const locale = language === "zh" ? "zh-TW" : "en-US";
@@ -55,21 +71,14 @@ export default function HistoryScreen() {
       day: "numeric",
     });
 
-    // 生成連續日期
-    // const days: string[] = [];
-    // for (let i = range - 1; i >= 0; i--) {
-    //   const d = new Date();
-    //   d.setDate(d.getDate() - i);
-    //   days.push(d.toISOString().split("T")[0]); // YYYY-MM-DD
-    // }
-
-    const days: string[] = []; // 以 dev clock 的「今天 00:00」為基準往回推
+    // 以 dev clock 的「今天 00:00」為基準往回推
+    const days: string[] = [];
     const base = new Date(nowMs);
     base.setHours(0, 0, 0, 0);
     for (let i = range - 1; i >= 0; i--) {
       const d = new Date(base);
       d.setDate(base.getDate() - i);
-      days.push(d.toISOString().split("T")[0]); // YYYY-MM-DD
+      days.push(localIsoDate(d.getTime())); // YYYY-MM-DD（本地）
     }
 
     return days.map((iso) => {
@@ -77,16 +86,16 @@ export default function HistoryScreen() {
       return {
         iso, // 用來篩選
         x: fmt.format(d), // 顯示在 X 軸的字串（例如 8/23）
-        minutes: Math.round(totals[iso]?.minutes ?? 0),
-        percent: Math.round((totals[iso]?.percent ?? 0) * 10) / 10,
+        minutes: Math.round(((totals[iso]?.minutes ?? 0) * 10)) / 10,
+        percent: Math.round(((totals[iso]?.percent ?? 0) * 10)) / 10,
       };
     });
-  }, [history, range, language]);
+  }, [history, range, language, nowMs, activeSession]);
 
   // ★ 用手勢追蹤目前「指到哪個 X（日期字串）」；用它來設定 selectedDay
   const { state: pressState } = useChartPressState({
     x: "", // x 的型別要跟 xKey 一致，這裡是字串
-    y: { minutes: 0, percent: 0 },
+    y: { value: 0 },
   });
 
   useDerivedValue(() => {
@@ -107,15 +116,32 @@ export default function HistoryScreen() {
       const ts = new Date(s.timestamp).getTime();
       if (ts < cutoff) return false;
       if (!selectedDay) return true;
-      const key = new Date(ts).toISOString().split("T")[0];
+      const key = localIsoDate(ts);
       return key === selectedDay;
     });
+    // 進行中的 session 作為臨時 record 顯示在列表
+    if (activeSession) {
+      const iso = localIsoDate(nowMs);
+      if (!selectedDay || selectedDay === iso) {
+        const liveItem: ChargeSession = {
+          id: "live",
+          timestamp: new Date(nowMs).toISOString(),
+          percent: Math.max(0, Number(activeSession.livePercent.toFixed(1))),
+          durationMin: Number(activeSession.liveDurationMin.toFixed(2)),
+          startPercent: Math.round(activeSession.startPercent),
+          endPercent: Math.round(
+            activeSession.startPercent + activeSession.livePercent
+          ),
+        } as any;
+        list.push(liveItem);
+      }
+    }
     return [...list].sort(
       (a, b) =>
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
     // }, [history, range, selectedDay]);
-  }, [history, range, selectedDay, nowMs]);
+  }, [history, range, selectedDay, nowMs, activeSession]);
 
   const selectedSummary = useMemo(() => {
     if (!selectedDay) return null;
@@ -159,11 +185,26 @@ export default function HistoryScreen() {
           <Text style={styles.recordDetails}>
             {i18n.t("fromToPercent", { from, to })}
           </Text>
-          <Text style={styles.recordDetails}>+{Math.round(item.percent)}%</Text>
+          <Text style={styles.recordDetails}>
+            +{(Math.round((item.percent ?? 0) * 10) / 10).toFixed(1)}%
+          </Text>
         </View>
       </Pressable>
     );
   };
+
+  // 圖表指標切換（避免兩個不同量綱共用一個 y 軸）
+  const [metric, setMetric] = useState<"percent" | "minutes">("percent");
+
+  // 圖表資料（只顯示單一指標）
+  const chartData = useMemo(
+    () =>
+      groupedData.map((d) => ({
+        x: d.x,
+        value: metric === "percent" ? d.percent : d.minutes,
+      })),
+    [groupedData, metric]
+  );
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
@@ -171,7 +212,7 @@ export default function HistoryScreen() {
         data={filteredHistory}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
-        extraData={`${selectedId}-${selectedDay}`}
+        extraData={`${selectedId}-${selectedDay}-${metric}-${(activeSession?.livePercent ?? 0).toFixed(1)}-${(activeSession?.liveDurationMin ?? 0).toFixed(2)}`}
         contentContainerStyle={{ padding: 16 }}
         ListHeaderComponent={
           <View>
@@ -219,6 +260,44 @@ export default function HistoryScreen() {
               </Pressable>
             </View>
 
+            {/* 圖表指標切換 */}
+            <View style={[styles.rangePicker, { marginTop: 8 }]}> 
+              <Pressable
+                accessibilityRole="button"
+                style={[
+                  styles.rangeOption,
+                  metric === "percent" && styles.rangeOptionActive,
+                ]}
+                onPress={() => setMetric("percent")}
+              >
+                <Text
+                  style={[
+                    styles.rangeText,
+                    metric === "percent" && styles.rangeTextActive,
+                  ]}
+                >
+                  {i18n.t("legendPercent") || "充電量 (%)"}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={[
+                  styles.rangeOption,
+                  metric === "minutes" && styles.rangeOptionActive,
+                ]}
+                onPress={() => setMetric("minutes")}
+              >
+                <Text
+                  style={[
+                    styles.rangeText,
+                    metric === "minutes" && styles.rangeTextActive,
+                  ]}
+                >
+                  {i18n.t("legendMinutes") || "充電時間 (分鐘)"}
+                </Text>
+              </Pressable>
+            </View>
+
             {/* 清除紀錄 */}
             <View style={{ marginBottom: 16, alignItems: "center" }}>
               <Button
@@ -227,13 +306,15 @@ export default function HistoryScreen() {
                 disabled={history.length === 0}
               />
             </View>
-            <DevClockControls
-              nowMs={nowMs}
-              offsetDays={offsetDays}
-              onShift={shiftDays}
-              onReset={reset}
-              labelToday={i18n.locale === "zh" ? "回到今天" : "Today"}
-            />
+            {__DEV__ && (
+              <DevClockControls
+                nowMs={nowMs}
+                offsetDays={offsetDays}
+                onShift={shiftDays}
+                onReset={reset}
+                labelToday={i18n.locale === "zh" ? "回到今天" : "Today"}
+              />
+            )}
 
             {history.length === 0 ? (
               <Text style={{ textAlign: "center" }}>{i18n.t("noHistory")}</Text>
@@ -243,9 +324,9 @@ export default function HistoryScreen() {
                 <View style={{ height: 300 }}>
                   <CartesianChart
                     style={{ flex: 1 }}
-                    data={groupedData}
+                    data={chartData}
                     xKey="x"
-                    yKeys={["minutes", "percent"]}
+                    yKeys={["value"]}
                     padding={{ left: 20, right: 20, top: 8, bottom: 24 }}
                     domainPadding={{ top: 20, left: 20, right: 20 }}
                     axisOptions={{
@@ -262,12 +343,10 @@ export default function HistoryScreen() {
                         withinGroupPadding={0.12}
                       >
                         <BarGroup.Bar
-                          points={points.minutes ?? []}
-                          color="#10b981"
-                        />
-                        <BarGroup.Bar
-                          points={points.percent ?? []}
-                          color="#4f46e5"
+                          points={points.value ?? []}
+                          color={
+                            metric === "percent" ? "#4f46e5" : "#10b981"
+                          }
                         />
                       </BarGroup>
                     )}
@@ -302,14 +381,17 @@ export default function HistoryScreen() {
                     marginTop: 8,
                   }}
                 >
-                  <Legend
-                    color="#10b981"
-                    label={i18n.t("legendMinutes") || "充電時間（分鐘）"}
-                  />
-                  <Legend
-                    color="#4f46e5"
-                    label={i18n.t("legendPercent") || "補電量（百分點）"}
-                  />
+                  {metric === "minutes" ? (
+                    <Legend
+                      color="#10b981"
+                      label={i18n.t("legendMinutes") || "充電時間（分鐘）"}
+                    />
+                  ) : (
+                    <Legend
+                      color="#4f46e5"
+                      label={i18n.t("legendPercent") || "補電量（百分點）"}
+                    />
+                  )}
                 </View>
 
                 {/* 清除日期篩選 */}

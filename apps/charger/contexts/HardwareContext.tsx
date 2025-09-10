@@ -33,6 +33,12 @@ type ContextType = {
   data: HardwareData;
   error: string | null;
   isCharging: boolean | null; // ← 新增，供頁面使用
+  activeSession: {
+    startTimeMs: number;
+    startPercent: number;
+    livePercent: number; // 已補電百分點（0-100）
+    liveDurationMin: number;
+  } | null;
 };
 
 const defaultData: HardwareData = {
@@ -50,6 +56,7 @@ const DataContext = createContext<ContextType>({
   data: defaultData,
   error: null,
   isCharging: null,
+  activeSession: null,
 });
 
 export function HardwareDataProvider({ children }) {
@@ -59,6 +66,9 @@ export function HardwareDataProvider({ children }) {
   // 充電狀態 (本 context 自己監控，不相依 AlertContext)
   const [isCharging, setIsCharging] = useState<boolean | null>(null);
   const batteryLevelRef = useRef<number | null>(null);
+  const [activeSession, setActiveSession] = useState<ContextType["activeSession"]>(
+    null
+  );
 
   useEffect(() => {
     const subscription = Battery.addBatteryStateListener(({ batteryState }) => {
@@ -82,6 +92,21 @@ export function HardwareDataProvider({ children }) {
     const updateLevel = (level: number | null) => {
       if (level != null) {
         batteryLevelRef.current = level;
+        // 更新即時充電資訊
+        if (
+          isCharging &&
+          chargeStartLevel.current != null &&
+          chargeStartTime.current != null
+        ) {
+          const diff = (level - chargeStartLevel.current) * 100;
+          const durationMin = (Date.now() - chargeStartTime.current) / 60000;
+          setActiveSession({
+            startTimeMs: chargeStartTime.current,
+            startPercent: Number((chargeStartLevel.current * 100).toFixed(2)),
+            livePercent: Math.max(0, Number(diff.toFixed(2))),
+            liveDurationMin: Number(durationMin.toFixed(2)),
+          });
+        }
       }
     };
 
@@ -91,7 +116,7 @@ export function HardwareDataProvider({ children }) {
     });
 
     return () => levelSub.remove();
-  }, []);
+  }, [isCharging]);
 
   // 用ref存最近30筆資料
   const currentRef = useRef<number[]>([]);
@@ -111,6 +136,17 @@ export function HardwareDataProvider({ children }) {
       // 開始充電時記錄電量
       chargeStartLevel.current = batteryLevelRef.current;
       chargeStartTime.current = Date.now();
+      if (
+        chargeStartLevel.current != null &&
+        chargeStartTime.current != null
+      ) {
+        setActiveSession({
+          startTimeMs: chargeStartTime.current,
+          startPercent: Number((chargeStartLevel.current * 100).toFixed(2)),
+          livePercent: 0,
+          liveDurationMin: 0,
+        });
+      }
     }
     if (prevCharging.current && !isCharging) {
       // 結束充電時計算充電百分比並記錄
@@ -137,6 +173,7 @@ export function HardwareDataProvider({ children }) {
       temperatureRef.current = [];
       chargeStartLevel.current = null;
       chargeStartTime.current = null;
+      setActiveSession(null);
     }
     prevCharging.current = isCharging;
   }, [isCharging, addSession]);
@@ -242,7 +279,7 @@ export function HardwareDataProvider({ children }) {
   }, [esp32Ip, esp32Port, esp32Path]);
 
   return (
-    <DataContext.Provider value={{ data, error, isCharging }}>
+    <DataContext.Provider value={{ data, error, isCharging, activeSession }}>
       {children}
     </DataContext.Provider>
   );
