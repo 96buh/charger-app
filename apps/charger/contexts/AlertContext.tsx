@@ -63,6 +63,9 @@ export function AlertProvider({ children }) {
             timestamp: new Date().toISOString(),
             reason: tempText,
             type: i18n.t("temperatureAbnormal"),
+            reasonKey: "tempOverThreshold",
+            reasonParams: { temp: tempThreshold },
+            typeKey: "temperatureAbnormal",
           });
           speakAlert(tempText);
           lastAlertedTemp.current = true;
@@ -157,6 +160,8 @@ export function AlertProvider({ children }) {
         timestamp: new Date().toISOString(),
         reason: displayLabel,
         type: displayLabel,
+        reasonKey: labelKey,
+        typeKey: labelKey,
       });
       player.play();
       if (timeoutRef.current) clearTimeout(timeoutRef.current);

@@ -23,6 +23,7 @@ interface ChargeHistoryContextProps {
   history: ChargeSession[];
   addSession: (session: ChargeSession) => void;
   clearHistory: () => void;
+  replaceHistory: (sessions: ChargeSession[]) => void;
 }
 
 const STORAGE_KEY = "charge_history";
@@ -74,6 +75,10 @@ export const ChargeHistoryProvider: React.FC<{ children: React.ReactNode }> = ({
     setHistory((prev) => [...prev, session]);
   }, []);
 
+  const replaceHistory = useCallback((sessions: ChargeSession[]) => {
+    setHistory(sessions);
+  }, []);
+
   const clearHistory = useCallback(() => {
     setHistory([]);
     AsyncStorage.removeItem(STORAGE_KEY).catch((e) =>
@@ -83,7 +88,7 @@ export const ChargeHistoryProvider: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <ChargeHistoryContext.Provider
-      value={{ history, addSession, clearHistory }}
+      value={{ history, addSession, clearHistory, replaceHistory }}
     >
       {children}
     </ChargeHistoryContext.Provider>

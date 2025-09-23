@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Button,
   View,
@@ -11,7 +11,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useSettings } from "@/contexts/SettingsContext";
 import i18n from "@/utils/i18n";
 
-import { CartesianChart, Bar, BarGroup, useChartPressState } from "victory-native";
+import { CartesianChart, BarGroup, useChartPressState } from "victory-native";
+import {
+  useFont,
+  Group,
+  RoundedRect,
+  Text as SkiaText,
+} from "@shopify/react-native-skia";
+import inter from "@/assets/fonts/SpaceMono-Regular.ttf";
 import { useDevClock, DAY_MS } from "@/utils/devClock";
 import DevClockControls from "@/components/DevClockControl";
 import { useDerivedValue, runOnJS } from "react-native-reanimated";
@@ -43,6 +50,17 @@ export default function HistoryScreen() {
 
   // ★ 新增：選中的「哪一天」（YYYY-MM-DD）；null = 不篩選
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [tooltipInfo, setTooltipInfo] = useState<
+    | {
+        index: number;
+        label: string;
+        value: number;
+        x: number;
+        y: number;
+      }
+    | null
+  >(null);
 
   // 每天彙總：minutes(總充電分鐘)、percent(總補電百分點) + iso（YYYY-MM-DD） & x（本地化日期字串）
   const groupedData = useMemo(() => {
@@ -86,27 +104,52 @@ export default function HistoryScreen() {
       return {
         iso, // 用來篩選
         x: fmt.format(d), // 顯示在 X 軸的字串（例如 8/23）
-        minutes: Math.round(((totals[iso]?.minutes ?? 0) * 10)) / 10,
-        percent: Math.round(((totals[iso]?.percent ?? 0) * 10)) / 10,
+        minutes: Math.round((totals[iso]?.minutes ?? 0) * 10) / 10,
+        percent: Math.round((totals[iso]?.percent ?? 0) * 10) / 10,
       };
     });
   }, [history, range, language, nowMs, activeSession]);
 
-  // ★ 用手勢追蹤目前「指到哪個 X（日期字串）」；用它來設定 selectedDay
-  const { state: pressState } = useChartPressState({
-    x: "", // x 的型別要跟 xKey 一致，這裡是字串
+  // ★ 用手勢追蹤目前「指到哪個 X（日期字串）」；用它來設定 tooltip 與 selectedDay
+  const { state: pressState, isActive: pressIsActive } = useChartPressState({
+    x: 0,
     y: { value: 0 },
   });
 
+  const assignActiveIndex = useCallback((idx: number) => {
+    setActiveIndex(idx);
+  }, []);
+
+  const clearActiveIndex = useCallback(() => {
+    setActiveIndex(null);
+    setTooltipInfo(null);
+  }, []);
+
   useDerivedValue(() => {
-    const xVal = pressState.x.value; // 與 xKey 同型別（日期字串）
-    if (!xVal) return;
-    // 找到對應日期，切換列表篩選
-    const hit = groupedData.find((d) => d.x === xVal);
+    if (!pressIsActive.value) {
+      runOnJS(clearActiveIndex)();
+      return;
+    }
+    const xVal = Math.round(pressState.x.value);
+    if (!Number.isFinite(xVal)) return;
+    if (xVal < 0 || xVal >= groupedData.length) return;
+    const hit = groupedData[xVal];
     if (hit) {
       runOnJS(setSelectedDay)(hit.iso);
+      const value =
+        metric === "percent" ? hit.percent : hit.minutes;
+      const xPos = pressState.x.position.value;
+      const yPos = pressState.y.value.position.value;
+      runOnJS(assignActiveIndex)(xVal);
+      runOnJS(setTooltipInfo)({
+        index: xVal,
+        label: hit.x,
+        value,
+        x: xPos,
+        y: yPos,
+      });
     }
-  }, [groupedData]);
+  }, [groupedData, metric, assignActiveIndex, clearActiveIndex]);
 
   // ★ 篩選出「所選日期」的 records（沒選就顯示全部）
   const filteredHistory = useMemo(() => {
@@ -199,12 +242,67 @@ export default function HistoryScreen() {
   // 圖表資料（只顯示單一指標）
   const chartData = useMemo(
     () =>
-      groupedData.map((d) => ({
-        x: d.x,
+      groupedData.map((d, index) => ({
+        index,
+        label: d.x,
         value: metric === "percent" ? d.percent : d.minutes,
       })),
     [groupedData, metric]
   );
+
+  const xDomain = useMemo(() => {
+    if (chartData.length === 0) return [0, 1] as [number, number];
+    return [-0.5, chartData.length - 0.5] as [number, number];
+  }, [chartData.length]);
+
+  const labelStep = useMemo(() => {
+    if (range <= 10) return 1;
+    if (range <= 20) return 2;
+    return 5;
+  }, [range]);
+
+  useEffect(() => {
+    setTooltipInfo(null);
+    setActiveIndex(null);
+  }, [metric, range]);
+
+  const axisFont = useFont(inter, range > 20 ? 10 : 12);
+
+  const tickValues = useMemo(() => {
+    if (chartData.length === 0) return [] as number[];
+    const values: number[] = [];
+    chartData.forEach((_, idx) => {
+      const isEdge = idx === 0 || idx === chartData.length - 1;
+      if (isEdge || idx % labelStep === 0) {
+        values.push(idx);
+      }
+    });
+    return Array.from(new Set(values)).sort((a, b) => a - b);
+  }, [chartData, labelStep]);
+
+  const formatTick = useCallback(
+    (value: number) => {
+      const idx = Math.round(value);
+      return chartData[idx]?.label ?? "";
+    },
+    [chartData]
+  );
+
+  const betweenGroupPadding = useMemo(() => {
+    if (range > 20) return 0.03;
+    if (range > 10) return 0.08;
+    return 0.14;
+  }, [range]);
+
+  const withinGroupPadding = useMemo(() => {
+    return range <= 10 ? 0.02 : 0.06;
+  }, [range]);
+
+  const explicitBarWidth = useMemo(() => {
+    if (range <= 10) return 26;
+    if (range <= 20) return 14;
+    return undefined;
+  }, [range]);
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
@@ -212,7 +310,9 @@ export default function HistoryScreen() {
         data={filteredHistory}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
-        extraData={`${selectedId}-${selectedDay}-${metric}-${(activeSession?.livePercent ?? 0).toFixed(1)}-${(activeSession?.liveDurationMin ?? 0).toFixed(2)}`}
+        extraData={`${selectedId}-${selectedDay}-${metric}-${(
+          activeSession?.livePercent ?? 0
+        ).toFixed(1)}-${(activeSession?.liveDurationMin ?? 0).toFixed(2)}`}
         contentContainerStyle={{ padding: 16 }}
         ListHeaderComponent={
           <View>
@@ -261,7 +361,7 @@ export default function HistoryScreen() {
             </View>
 
             {/* 圖表指標切換 */}
-            <View style={[styles.rangePicker, { marginTop: 8 }]}> 
+            <View style={[styles.rangePicker, { marginTop: 8 }]}>
               <Pressable
                 accessibilityRole="button"
                 style={[
@@ -325,33 +425,177 @@ export default function HistoryScreen() {
                   <CartesianChart
                     style={{ flex: 1 }}
                     data={chartData}
-                    xKey="x"
+                    xKey="index"
                     yKeys={["value"]}
-                    padding={{ left: 20, right: 20, top: 8, bottom: 24 }}
-                    domainPadding={{ top: 20, left: 20, right: 20 }}
-                    axisOptions={{
-                      formatXLabel: (t) => t,
-                      formatYLabel: (t) => `${t}`,
-                    }}
+                    padding={{ left: 16, right: 16, top: 8, bottom: axisFont ? 32 : 24 }}
+                    domain={{ x: xDomain }}
+                    domainPadding={{ top: 20 }}
+                    xAxis={
+                      axisFont
+                        ? {
+                            font: axisFont,
+                            tickValues,
+                            labelColor: "#4b5563",
+                            labelOffset: 6,
+                            axisSide: "bottom",
+                            lineColor: "rgba(148, 163, 184, 0.4)",
+                            lineWidth: 1,
+                            formatXLabel: formatTick,
+                          }
+                        : undefined
+                    }
+                    yAxis={
+                      axisFont
+                        ? [
+                            {
+                              yKeys: ["value"],
+                              font: axisFont,
+                              tickCount: 5,
+                              labelColor: "#4b5563",
+                              labelOffset: 4,
+                              axisSide: "left",
+                              lineColor: "rgba(148, 163, 184, 0.35)",
+                              lineWidth: 1,
+                              formatYLabel: (val: number) => `${val}`,
+                            },
+                          ]
+                        : undefined
+                    }
                     // ★ 啟用 press 手勢追蹤
                     chartPressState={pressState}
+                    renderOutside={({ chartBounds }) => {
+                      if (!axisFont || !tooltipInfo) return null;
+                      const clampedX = Math.min(
+                        Math.max(tooltipInfo.x, chartBounds.left + 8),
+                        chartBounds.right - 8
+                      );
+                      const clampedY = Math.min(
+                        Math.max(tooltipInfo.y, chartBounds.top + 12),
+                        chartBounds.bottom - 12
+                      );
+                      const minuteUnit = language === "zh" ? "分鐘" : "min";
+                      const valueLine =
+                        metric === "percent"
+                          ? `${tooltipInfo.value.toFixed(1)}%`
+                          : `${Math.round(tooltipInfo.value)} ${minuteUnit}`;
+                      const labelLine = tooltipInfo.label;
+                      const padX = 10;
+                      const padY = 6;
+                      const textHeight = axisFont.getSize();
+                      const labelWidth = axisFont.getTextWidth(labelLine);
+                      const valueWidth = axisFont.getTextWidth(valueLine);
+                      const boxWidth = Math.max(labelWidth, valueWidth) + padX * 2;
+                      const boxHeight = textHeight * 2 + padY * 3;
+                      const boxX = Math.min(
+                        Math.max(clampedX - boxWidth / 2, chartBounds.left + 4),
+                        chartBounds.right - boxWidth - 4
+                      );
+                      const boxY = Math.max(
+                        clampedY - boxHeight - 14,
+                        chartBounds.top + 4
+                      );
+                      return (
+                        <Group>
+                          <RoundedRect
+                            x={boxX}
+                            y={boxY}
+                            width={boxWidth}
+                            height={boxHeight}
+                            r={6}
+                            color="rgba(17,24,39,0.92)"
+                          />
+                          <SkiaText
+                            text={labelLine}
+                            x={boxX + padX}
+                            y={boxY + padY + textHeight}
+                            font={axisFont}
+                            color="rgba(255,255,255,0.85)"
+                          />
+                          <SkiaText
+                            text={valueLine}
+                            x={boxX + padX}
+                            y={boxY + padY * 2 + textHeight * 2}
+                            font={axisFont}
+                            color="white"
+                          />
+                        </Group>
+                      );
+                    }}
                   >
-                    {({ points, chartBounds }) => (
-                      <BarGroup
-                        chartBounds={chartBounds}
-                        betweenGroupPadding={0.3}
-                        withinGroupPadding={0.12}
-                      >
-                        <BarGroup.Bar
-                          points={points.value ?? []}
-                          color={
-                            metric === "percent" ? "#4f46e5" : "#10b981"
-                          }
-                        />
-                      </BarGroup>
-                    )}
+                    {({ points, chartBounds }) => {
+                      const highlightIdx = tooltipInfo?.index ?? activeIndex;
+                      const highlightPoint = (points.value ?? []).find(
+                        (pt) => Math.round(pt.xValue) === highlightIdx
+                      );
+                      const barWidth = explicitBarWidth
+                        ? explicitBarWidth
+                        : (() => {
+                            if (!points.value || points.value.length < 2) {
+                              return 24;
+                            }
+                            const xs = points.value
+                              .map((p) => p.x)
+                              .sort((a, b) => a - b);
+                            const gapAvg =
+                              xs.length > 1
+                                ? (xs[xs.length - 1] - xs[0]) /
+                                  Math.max(xs.length - 1, 1)
+                                : 24;
+                            return gapAvg * (1 - betweenGroupPadding * 1.2);
+                          })();
+                      return (
+                        <>
+                          <BarGroup
+                            chartBounds={chartBounds}
+                            betweenGroupPadding={betweenGroupPadding}
+                            withinGroupPadding={withinGroupPadding}
+                            barCount={chartData.length}
+                            barWidth={explicitBarWidth}
+                          >
+                            <BarGroup.Bar
+                              points={points.value ?? []}
+                              color={
+                                metric === "percent" ? "#4f46e5" : "#10b981"
+                              }
+                            />
+                          </BarGroup>
+                          {highlightPoint && barWidth ? (
+                            <RoundedRect
+                              x={highlightPoint.x - barWidth / 2}
+                              y={highlightPoint.y}
+                              width={barWidth}
+                              height={chartBounds.bottom - highlightPoint.y}
+                              r={4}
+                              color={
+                                metric === "percent"
+                                  ? "rgba(79,70,229,0.25)"
+                                  : "rgba(16,185,129,0.25)"
+                              }
+                            />
+                          ) : null}
+                        </>
+                      );
+                    }}
                   </CartesianChart>
                 </View>
+
+                {!axisFont && (
+                  <View style={styles.xAxisLabelRow}>
+                    {chartData.map((item, idx) => {
+                      const isEdge = idx === 0 || idx === chartData.length - 1;
+                      const showLabel = isEdge || idx % labelStep === 0;
+                      return (
+                        <Text
+                          key={`${item.label}-${idx}`}
+                          style={styles.xAxisLabel}
+                          numberOfLines={1}
+                        >
+                          {showLabel ? item.label : ""}
+                        </Text>
+                      );
+                    })}
+                  </View>
+                )}
 
                 {/* 選中日期的摘要（相當於 tooltip 的資訊區） */}
                 <View style={{ alignItems: "center", marginTop: 8 }}>
@@ -476,9 +720,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
   },
-  axisInfo: {
+  xAxisLabelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  xAxisLabel: {
+    flex: 1,
     textAlign: "center",
-    marginTop: 4,
-    color: "#374151",
+    fontSize: 12,
+    color: "#4b5563",
   },
 });
