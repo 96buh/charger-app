@@ -15,12 +15,15 @@ export interface ChargeSession {
   /** Percentage of battery added during the session (0-100) */
   percent: number;
   durationMin: number;
+  startPercent: number;
+  endPercent: number;
 }
 
 interface ChargeHistoryContextProps {
   history: ChargeSession[];
   addSession: (session: ChargeSession) => void;
   clearHistory: () => void;
+  replaceHistory: (sessions: ChargeSession[]) => void;
 }
 
 const STORAGE_KEY = "charge_history";
@@ -33,6 +36,7 @@ export const ChargeHistoryProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [history, setHistory] = useState<ChargeSession[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
   // Load stored sessions on mount
   useEffect(() => {
@@ -47,12 +51,15 @@ export const ChargeHistoryProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       } catch (e) {
         console.warn("Failed to load charge history", e);
+      } finally {
+        setHydrated(true);
       }
     })();
   }, []);
 
   // Persist whenever history changes
   useEffect(() => {
+    if (!hydrated) return;
     if (history.length > 0) {
       AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(history)).catch((e) =>
         console.warn("Failed to save charge history", e)
@@ -62,10 +69,14 @@ export const ChargeHistoryProvider: React.FC<{ children: React.ReactNode }> = ({
         console.warn("Failed to clear charge history", e)
       );
     }
-  }, [history]);
+  }, [history, hydrated]);
 
   const addSession = useCallback((session: ChargeSession) => {
     setHistory((prev) => [...prev, session]);
+  }, []);
+
+  const replaceHistory = useCallback((sessions: ChargeSession[]) => {
+    setHistory(sessions);
   }, []);
 
   const clearHistory = useCallback(() => {
@@ -77,7 +88,7 @@ export const ChargeHistoryProvider: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <ChargeHistoryContext.Provider
-      value={{ history, addSession, clearHistory }}
+      value={{ history, addSession, clearHistory, replaceHistory }}
     >
       {children}
     </ChargeHistoryContext.Provider>

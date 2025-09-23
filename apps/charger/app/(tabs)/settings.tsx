@@ -6,10 +6,14 @@ import {
   StyleSheet,
   Switch,
   ScrollView,
+  Button,
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Picker } from "@react-native-picker/picker";
 import { useSettings } from "@/contexts/SettingsContext";
+import { useChargeHistory } from "@/contexts/ChargeHistoryContext";
+import { useErrorLog } from "@/contexts/ErrorLogContext";
+import { generateDemoChargeHistory, generateDemoErrorLogs } from "@/utils/demoData";
 import { SafeAreaView } from "react-native-safe-area-context";
 import i18n from "@/utils/i18n";
 
@@ -31,7 +35,21 @@ export default function SettingsPage() {
     setChargeThreshold,
   } = useSettings();
 
+  const { replaceHistory, clearHistory } = useChargeHistory();
+  const { replaceLogs } = useErrorLog();
+
   i18n.locale = language;
+
+  const handleLoadDemo = () => {
+    const now = Date.now();
+    replaceHistory(generateDemoChargeHistory(now));
+    replaceLogs(generateDemoErrorLogs(now));
+  };
+
+  const handleClearDemo = () => {
+    clearHistory();
+    replaceLogs([]);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -110,6 +128,22 @@ export default function SettingsPage() {
             <Picker.Item label={i18n.t("chinese") as string} value="zh" />
           </Picker>
         </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{i18n.t("demoData")}</Text>
+          <Text style={styles.demoDescription}>
+            {i18n.t("demoDataDescription")}
+          </Text>
+          <View style={styles.buttonRow}>
+            <Button title={i18n.t("loadDemoData")} onPress={handleLoadDemo} />
+          </View>
+          <View style={styles.buttonRow}>
+            <Button
+              title={i18n.t("clearDemoData")}
+              onPress={handleClearDemo}
+              color="#e53935"
+            />
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -156,5 +190,13 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: "#fff",
     fontSize: 15,
+  },
+  buttonRow: {
+    marginTop: 12,
+  },
+  demoDescription: {
+    color: "#4b5563",
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

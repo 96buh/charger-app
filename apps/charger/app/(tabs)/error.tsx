@@ -15,6 +15,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useErrorLog } from "@/contexts/ErrorLogContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import i18n from "@/utils/i18n";
+import { Pie, PolarChart } from "victory-native";
+import { useFont } from "@shopify/react-native-skia";
+import inter from "@/assets/fonts/SpaceMono-Regular.ttf";
 
 const startOfDay = (d: Date) => {
   const x = new Date(d);
@@ -32,7 +35,49 @@ type LogItem = {
   reason: string;
   type: string;
   timestamp: string | number | Date;
+  reasonKey?: string;
+  reasonParams?: Record<string, unknown>;
+  typeKey?: string;
 };
+
+type LocalizedLog = LogItem & {
+  reasonText: string;
+  typeText: string;
+  normalizedTypeKey: string;
+};
+
+const KNOWN_ERROR_TYPES = [
+  "rustedCable",
+  "rustedTransformer",
+  "temperatureAbnormal",
+  "unknown",
+];
+
+const PIE_COLORS = ["#ef4444", "#8b5cf6", "#f97316", "#22c55e", "#0ea5e9"];
+
+const TYPE_KEY_LOOKUP: Record<string, string> = {
+  未充電: "notCharging",
+  正常: "normal",
+  未知: "unknown",
+  充電線生鏽: "rustedCable",
+  變壓器生鏽: "rustedTransformer",
+  "Not Charging": "notCharging",
+  Normal: "normal",
+  Unknown: "unknown",
+  "Cable Rust": "rustedCable",
+  "Transformer Rust": "rustedTransformer",
+  "Temperature Abnormal": "temperatureAbnormal",
+  溫度異常: "temperatureAbnormal",
+};
+
+const REASON_KEY_TO_TYPE: Record<string, string> = {
+  tempOverThreshold: "temperatureAbnormal",
+  errorReasonRustedCable: "rustedCable",
+  errorReasonRustedTransformer: "rustedTransformer",
+  errorReasonTemperature: "temperatureAbnormal",
+};
+
+const TEMPERATURE_KEYWORDS = ["temperature", "溫度"];
 
 export default function ErrorPage() {
   const { logs, removeLogs } = useErrorLog();
@@ -53,10 +98,77 @@ export default function ErrorPage() {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
 
-  const types = useMemo(
-    () => Array.from(new Set(logs.map((l) => l.type))),
-    [logs]
-  );
+  const localizedLogs: LocalizedLog[] = useMemo(() => {
+    const locale = language;
+    return logs.map((log) => {
+      const inferredFromReason = log.reasonKey
+        ? REASON_KEY_TO_TYPE[log.reasonKey]
+        : undefined;
+      let normalizedTypeKey =
+        log.typeKey ||
+        TYPE_KEY_LOOKUP[log.type] ||
+        inferredFromReason ||
+        TYPE_KEY_LOOKUP[log.reason] ||
+        "";
+
+      if (!normalizedTypeKey) {
+        const matchesTemperature = TEMPERATURE_KEYWORDS.some((keyword) =>
+          String(log.reason).toLowerCase().includes(keyword)
+        );
+        if (matchesTemperature) {
+          normalizedTypeKey = "temperatureAbnormal";
+        }
+      }
+
+      if (!normalizedTypeKey) {
+        normalizedTypeKey = "unknown";
+      }
+
+      const translationOptions = log.reasonParams
+        ? { locale, ...(log.reasonParams as Record<string, unknown>) }
+        : { locale };
+
+      const reasonText = log.reasonKey
+        ? i18n.t(log.reasonKey, translationOptions)
+        : log.reason;
+
+      const typeText = i18n.t(normalizedTypeKey, { locale });
+
+      return {
+        ...log,
+        reasonText: typeof reasonText === "string" ? reasonText : String(reasonText),
+        typeText: typeof typeText === "string" ? typeText : String(typeText),
+        normalizedTypeKey,
+      };
+    });
+  }, [logs, language]);
+
+  const typeOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    localizedLogs.forEach((log) => {
+      map.set(log.normalizedTypeKey, log.typeText);
+    });
+    const ordered: [string, string][] = [];
+    KNOWN_ERROR_TYPES.forEach((key) => {
+      const label = map.get(key);
+      if (label) {
+        ordered.push([key, label]);
+        map.delete(key);
+      }
+    });
+    map.forEach((label, key) => {
+      ordered.push([key, label]);
+    });
+    return ordered;
+  }, [localizedLogs]);
+
+  useEffect(() => {
+    if (selectedType === "all") return;
+    const available = typeOptions.map(([key]) => key);
+    if (!available.includes(selectedType)) {
+      setSelectedType("all");
+    }
+  }, [typeOptions, selectedType]);
 
   const toggle = (id: string) => {
     setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -72,13 +184,14 @@ export default function ErrorPage() {
     }
   };
 
-  const renderItem = ({ item }: { item: LogItem }) => {
+  const renderItem = ({ item }: { item: LocalizedLog }) => {
     const checked = !!selected[item.id];
     return (
       <TouchableOpacity style={styles.item} onPress={() => toggle(item.id)}>
         <View style={[styles.checkbox, checked && styles.checkboxChecked]} />
         <View style={styles.itemText}>
-          <Text style={styles.reason}>{item.reason}</Text>
+          <Text style={styles.reason}>{item.reasonText}</Text>
+          <Text style={styles.typePill}>{item.typeText}</Text>
           <Text style={styles.timestamp}>
             {new Date(item.timestamp).toLocaleString([], {
               hour12: false,
@@ -98,11 +211,12 @@ export default function ErrorPage() {
 
   const filteredLogs = useMemo(() => {
     const now = Date.now();
-    return logs.filter((l) => {
-      const matchText = l.reason
+    return localizedLogs.filter((l) => {
+      const matchText = l.reasonText
         .toLowerCase()
         .includes(filterText.toLowerCase());
-      const matchType = selectedType === "all" || l.type === selectedType;
+      const matchType =
+        selectedType === "all" || l.normalizedTypeKey === selectedType;
       const t = new Date(l.timestamp).getTime();
       let matchTime = true;
       if (timeRange === "24h") matchTime = t >= now - 24 * 60 * 60 * 1000;
@@ -112,7 +226,78 @@ export default function ErrorPage() {
       }
       return matchText && matchTime && matchType;
     });
-  }, [logs, filterText, selectedType, timeRange, customStart, customEnd]);
+  }, [
+    localizedLogs,
+    filterText,
+    selectedType,
+    timeRange,
+    customStart,
+    customEnd,
+  ]);
+
+  const errorChartData = useMemo(() => {
+    if (filteredLogs.length === 0) return [];
+
+    const locale = language;
+
+    const counts = new Map<string, number>();
+    filteredLogs.forEach((log) => {
+      const key = log.normalizedTypeKey || "unknown";
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+
+    const data: {
+      typeKey: string;
+      label: string;
+      value: number;
+      color: string;
+      percent?: number;
+    }[] = [];
+
+    KNOWN_ERROR_TYPES.forEach((key, index) => {
+      const count = counts.get(key);
+      if (count && count > 0) {
+        data.push({
+          typeKey: key,
+          label: String(i18n.t(key, { locale })),
+          value: count,
+          color: PIE_COLORS[index % PIE_COLORS.length],
+        });
+        counts.delete(key);
+      }
+    });
+
+    let others = 0;
+    counts.forEach((count) => {
+      others += count;
+    });
+    if (others > 0) {
+      data.push({
+        typeKey: "other",
+        label: String(i18n.t("errorOther", { locale })),
+        value: others,
+        color: PIE_COLORS[data.length % PIE_COLORS.length],
+      });
+    }
+
+    const total = data.reduce((sum, item) => sum + item.value, 0);
+    return data.map((item) => ({
+      ...item,
+      percent: total ? Math.round((item.value / total) * 100) : 0,
+    }));
+  }, [filteredLogs, language]);
+
+  const pieSummary = useMemo(() => {
+    if (errorChartData.length === 0) return null;
+    const total = errorChartData.reduce((sum, item) => sum + item.value, 0);
+    const top = errorChartData.reduce((prev, item) =>
+      item.value > prev.value ? item : prev
+    );
+    const percent = total === 0 ? 0 : top.percent ?? Math.round((top.value / total) * 100);
+    return { total, topLabel: top.label, percent };
+  }, [errorChartData]);
+
+  const pieFont = useFont(inter, 12);
 
   const selectAll = () => {
     const all: Record<string, boolean> = {};
@@ -156,8 +341,8 @@ export default function ErrorPage() {
           style={styles.typePicker}
         >
           <Picker.Item label={i18n.t("allTypes") as string} value="all" />
-          {types.map((t) => (
-            <Picker.Item key={t} label={t} value={t} />
+          {typeOptions.map(([key, label]) => (
+            <Picker.Item key={key} label={String(label)} value={key} />
           ))}
         </Picker>
 
@@ -288,6 +473,73 @@ export default function ErrorPage() {
           keyExtractor={(item) => item.id}
           style={styles.list}
           contentContainerStyle={{ flexGrow: 1, paddingBottom: 8 }}
+          ListHeaderComponent={
+            <View style={styles.chartSection}>
+              <Text style={styles.chartTitle}>{i18n.t("errorChartTitle")}</Text>
+              {pieSummary && (
+                <Text style={styles.pieSummary}>
+                  {i18n.t("errorPieSummary", {
+                    total: pieSummary.total,
+                    label: pieSummary.topLabel,
+                    percent: pieSummary.percent,
+                  })}
+                </Text>
+              )}
+              {errorChartData.length > 0 ? (
+                <>
+                  <View style={styles.chartWrapper}>
+                    <PolarChart
+                      data={errorChartData}
+                      labelKey="label"
+                      valueKey="value"
+                      colorKey="color"
+                    >
+                      <Pie.Chart innerRadius={36} padAngle={1.5}>
+                        {({ slice }) => {
+                          if (!pieFont) {
+                            return <Pie.Slice />;
+                          }
+                          const total = pieSummary?.total ?? 0;
+                          const percent = total
+                            ? Math.round((slice.value / total) * 100)
+                            : 0;
+                          const showLabel = percent >= 4;
+                          return (
+                            <Pie.Slice>
+                              {showLabel ? (
+                                <Pie.Label
+                                  font={pieFont}
+                                  color="white"
+                                  text={`${percent}%`}
+                                  radiusOffset={0.6}
+                                />
+                              ) : null}
+                            </Pie.Slice>
+                          );
+                        }}
+                      </Pie.Chart>
+                    </PolarChart>
+                  </View>
+                  <View style={styles.chartLegendRow}>
+                    {errorChartData.map((item) => (
+                        <View key={item.typeKey} style={styles.chartLegendItem}>
+                          <View
+                            style={[
+                              styles.legendDot,
+                              { backgroundColor: item.color },
+                            ]}
+                          />
+                          <Text style={styles.legendLabel}>{item.label}</Text>
+                          <Text style={styles.legendCount}>{item.value}</Text>
+                        </View>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.emptyChart}>{i18n.t("errorChartEmpty")}</Text>
+              )}
+            </View>
+          }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Text style={styles.empty}>{emptyText}</Text>
@@ -376,6 +628,62 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  chartSection: {
+    paddingVertical: 12,
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+    color: "#1f2937",
+    marginBottom: 8,
+  },
+  pieSummary: {
+    textAlign: "center",
+    color: "#4b5563",
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  chartWrapper: {
+    height: 260,
+  },
+  emptyChart: {
+    textAlign: "center",
+    color: "#6b7280",
+  },
+  chartLegendRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 12,
+    marginTop: 8,
+  },
+  chartLegendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f9fafb",
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#e5e7eb",
+    gap: 6,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#ef4444",
+  },
+  legendLabel: {
+    fontSize: 12,
+    color: "#374151",
+  },
+  legendCount: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#111827",
+  },
 
   // 清單項目
   item: {
@@ -396,6 +704,16 @@ const styles = StyleSheet.create({
   checkboxChecked: { backgroundColor: "#5c6bc0" },
   itemText: { flex: 1 },
   reason: { fontSize: 16, color: "#222" },
+  typePill: {
+    alignSelf: "flex-start",
+    backgroundColor: "#eef2ff",
+    color: "#4338ca",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    fontSize: 12,
+    marginTop: 6,
+  },
   timestamp: { fontSize: 12, color: "#666", marginTop: 4 },
 
   actions: {

@@ -12,12 +12,16 @@ export interface ErrorRecord {
   timestamp: string; // ISO string
   reason: string;
   type: string;
+  reasonKey?: string;
+  reasonParams?: Record<string, unknown>;
+  typeKey?: string;
 }
 
 interface ErrorLogContextProps {
   logs: ErrorRecord[];
   addLog: (record: ErrorRecord) => void;
   removeLogs: (ids: string[]) => void;
+  replaceLogs: (records: ErrorRecord[]) => void;
 }
 
 const STORAGE_KEY = "error_logs";
@@ -45,6 +49,9 @@ export const ErrorLogProvider: React.FC<{ children: React.ReactNode }> = ({
                 timestamp: l.timestamp,
                 reason: l.reason,
                 type: l.type ?? l.reason,
+                reasonKey: l.reasonKey,
+                reasonParams: l.reasonParams,
+                typeKey: l.typeKey,
               }))
             );
           }
@@ -69,15 +76,26 @@ export const ErrorLogProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [logs]);
 
   const addLog = useCallback((record: ErrorRecord) => {
-    setLogs((prev) => [...prev, record]);
+    const normalized: ErrorRecord = {
+      ...record,
+      reason: record.reason ?? record.reasonKey ?? "",
+      type: record.type ?? record.typeKey ?? record.reason ?? "",
+    };
+    setLogs((prev) => [...prev, normalized]);
   }, []);
 
   const removeLogs = useCallback((ids: string[]) => {
     setLogs((prev) => prev.filter((r) => !ids.includes(r.id)));
   }, []);
 
+  const replaceLogs = useCallback((records: ErrorRecord[]) => {
+    setLogs(records);
+  }, []);
+
   return (
-    <ErrorLogContext.Provider value={{ logs, addLog, removeLogs }}>
+    <ErrorLogContext.Provider
+      value={{ logs, addLog, removeLogs, replaceLogs }}
+    >
       {children}
     </ErrorLogContext.Provider>
   );
