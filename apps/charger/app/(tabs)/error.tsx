@@ -40,10 +40,14 @@ type LogItem = {
   typeKey?: string;
 };
 
+type TemperatureSeverity = "normal" | "caution" | "danger";
+
 type LocalizedLog = LogItem & {
   reasonText: string;
   typeText: string;
   normalizedTypeKey: string;
+  temperatureC?: number;
+  temperatureSeverity?: TemperatureSeverity;
 };
 
 const KNOWN_ERROR_TYPES = [
@@ -78,6 +82,58 @@ const REASON_KEY_TO_TYPE: Record<string, string> = {
 };
 
 const TEMPERATURE_KEYWORDS = ["temperature", "溫度"];
+
+const TAG_COLOR_PALETTE: Record<
+  "blue" | "yellow" | "red",
+  { backgroundColor: string; color: string }
+> = {
+  blue: { backgroundColor: "#dbeafe", color: "#1d4ed8" },
+  yellow: { backgroundColor: "#fef08a", color: "#854d0e" },
+  red: { backgroundColor: "#fee2e2", color: "#b91c1c" },
+};
+
+const TEMPERATURE_COLORS: Record<TemperatureSeverity, { backgroundColor: string; color: string }> = {
+  danger: TAG_COLOR_PALETTE.red,
+  caution: TAG_COLOR_PALETTE.yellow,
+  normal: TAG_COLOR_PALETTE.blue,
+};
+
+const TYPE_TAG_COLORS: Record<string, { backgroundColor: string; color: string }> = {
+  rustedCable: TAG_COLOR_PALETTE.yellow,
+  rustedTransformer: TAG_COLOR_PALETTE.red,
+  notCharging: TAG_COLOR_PALETTE.blue,
+  normal: TAG_COLOR_PALETTE.blue,
+  unknown: TAG_COLOR_PALETTE.blue,
+};
+
+const DEFAULT_TAG_COLOR = TAG_COLOR_PALETTE.blue;
+
+const toNumber = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+};
+
+const classifyTemperature = (temp?: number): TemperatureSeverity | undefined => {
+  if (typeof temp !== "number") return undefined;
+  if (temp >= 50) return "danger";
+  if (temp >= 40) return "caution";
+  return "normal";
+};
+
+const getTagColors = (log: LocalizedLog) => {
+  if (log.normalizedTypeKey === "temperatureAbnormal") {
+    const severity = log.temperatureSeverity ?? classifyTemperature(log.temperatureC);
+    if (severity) {
+      return TEMPERATURE_COLORS[severity];
+    }
+    return TEMPERATURE_COLORS.normal;
+  }
+  return TYPE_TAG_COLORS[log.normalizedTypeKey] ?? DEFAULT_TAG_COLOR;
+};
 
 export default function ErrorPage() {
   const { logs, removeLogs } = useErrorLog();
@@ -124,6 +180,22 @@ export default function ErrorPage() {
         normalizedTypeKey = "unknown";
       }
 
+      const params = (log.reasonParams ?? {}) as Record<string, unknown>;
+      const measuredTemp = toNumber(
+        params["measuredTemp"] ??
+          params["measured"] ??
+          params["temperature"] ??
+          params["currentTemp"]
+      );
+      const thresholdTemp = toNumber(
+        params["temp"] ?? params["threshold"] ?? params["targetTemp"]
+      );
+      const temperatureC = measuredTemp ?? thresholdTemp;
+      const temperatureSeverity =
+        normalizedTypeKey === "temperatureAbnormal"
+          ? classifyTemperature(temperatureC)
+          : undefined;
+
       const translationOptions = log.reasonParams
         ? { locale, ...(log.reasonParams as Record<string, unknown>) }
         : { locale };
@@ -139,6 +211,8 @@ export default function ErrorPage() {
         reasonText: typeof reasonText === "string" ? reasonText : String(reasonText),
         typeText: typeof typeText === "string" ? typeText : String(typeText),
         normalizedTypeKey,
+        temperatureC,
+        temperatureSeverity,
       };
     });
   }, [logs, language]);
@@ -186,12 +260,13 @@ export default function ErrorPage() {
 
   const renderItem = ({ item }: { item: LocalizedLog }) => {
     const checked = !!selected[item.id];
+    const pillColors = getTagColors(item);
     return (
       <TouchableOpacity style={styles.item} onPress={() => toggle(item.id)}>
         <View style={[styles.checkbox, checked && styles.checkboxChecked]} />
         <View style={styles.itemText}>
           <Text style={styles.reason}>{item.reasonText}</Text>
-          <Text style={styles.typePill}>{item.typeText}</Text>
+          <Text style={[styles.typePill, pillColors]}>{item.typeText}</Text>
           <Text style={styles.timestamp}>
             {new Date(item.timestamp).toLocaleString([], {
               hour12: false,
@@ -706,13 +781,13 @@ const styles = StyleSheet.create({
   reason: { fontSize: 16, color: "#222" },
   typePill: {
     alignSelf: "flex-start",
-    backgroundColor: "#eef2ff",
-    color: "#4338ca",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 999,
     fontSize: 12,
+    fontWeight: "600",
     marginTop: 6,
+    overflow: "hidden",
   },
   timestamp: { fontSize: 12, color: "#666", marginTop: 4 },
 
