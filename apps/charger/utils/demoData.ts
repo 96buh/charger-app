@@ -48,11 +48,12 @@ export function generateDemoChargeHistory(now: number = Date.now()): ChargeSessi
 const DEMO_ERRORS = [
   { typeKey: "rustedCable", reasonKey: "errorReasonRustedCable" },
   { typeKey: "rustedTransformer", reasonKey: "errorReasonRustedTransformer" },
-  {
-    typeKey: "temperatureAbnormal",
-    reasonKey: "errorReasonTemperature",
-    makeParams: () => ({ temp: random(58, 68) }),
-  },
+];
+
+const DEMO_TEMPERATURE_SAMPLES = [
+  { temp: 38, offsetHours: 6 }, // normal zone (藍色)
+  { temp: 43, offsetHours: 18 }, // caution zone (黃色)
+  { temp: 55, offsetHours: 30 }, // danger zone (紅色)
 ];
 
 export function generateDemoErrorLogs(now: number = Date.now()): ErrorRecord[] {
@@ -67,12 +68,7 @@ export function generateDemoErrorLogs(now: number = Date.now()): ErrorRecord[] {
         now - offsetDays * DAY_MS - offsetHours * 60 * 60 * 1000
       );
 
-      const reasonParams = template.makeParams?.();
-      const reason = String(
-        reasonParams
-          ? i18n.t(template.reasonKey, reasonParams)
-          : i18n.t(template.reasonKey)
-      );
+      const reason = String(i18n.t(template.reasonKey));
       const type = String(i18n.t(template.typeKey));
 
       logs.push({
@@ -81,10 +77,23 @@ export function generateDemoErrorLogs(now: number = Date.now()): ErrorRecord[] {
         reason,
         type,
         reasonKey: template.reasonKey,
-        reasonParams,
         typeKey: template.typeKey,
       });
     }
+  });
+
+  DEMO_TEMPERATURE_SAMPLES.forEach((sample, index) => {
+    const timestamp = new Date(now - sample.offsetHours * 60 * 60 * 1000);
+    const params = { temp: sample.temp, measuredTemp: sample.temp };
+    logs.push({
+      id: `demo-error-temperature-${index}`,
+      timestamp: timestamp.toISOString(),
+      reason: String(i18n.t("errorReasonTemperature", params)),
+      type: String(i18n.t("temperatureAbnormal")),
+      reasonKey: "errorReasonTemperature",
+      reasonParams: params,
+      typeKey: "temperatureAbnormal",
+    });
   });
 
   return logs.sort(

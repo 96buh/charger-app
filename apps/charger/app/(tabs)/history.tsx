@@ -11,12 +11,18 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useSettings } from "@/contexts/SettingsContext";
 import i18n from "@/utils/i18n";
 
-import { CartesianChart, BarGroup, useChartPressState } from "victory-native";
+import {
+  CartesianChart,
+  BarGroup,
+  Line as ChartLine,
+  useChartPressState,
+} from "victory-native";
 import {
   useFont,
   Group,
   RoundedRect,
   Text as SkiaText,
+  Circle,
 } from "@shopify/react-native-skia";
 import inter from "@/assets/fonts/SpaceMono-Regular.ttf";
 import { useDevClock, DAY_MS } from "@/utils/devClock";
@@ -51,16 +57,13 @@ export default function HistoryScreen() {
   // ★ 新增：選中的「哪一天」（YYYY-MM-DD）；null = 不篩選
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [tooltipInfo, setTooltipInfo] = useState<
-    | {
-        index: number;
-        label: string;
-        value: number;
-        x: number;
-        y: number;
-      }
-    | null
-  >(null);
+  const [tooltipInfo, setTooltipInfo] = useState<{
+    index: number;
+    label: string;
+    value: number;
+    x: number;
+    y: number;
+  } | null>(null);
 
   // 每天彙總：minutes(總充電分鐘)、percent(總補電百分點) + iso（YYYY-MM-DD） & x（本地化日期字串）
   const groupedData = useMemo(() => {
@@ -135,9 +138,7 @@ export default function HistoryScreen() {
     if (xVal < 0 || xVal >= groupedData.length) return;
     const hit = groupedData[xVal];
     if (hit) {
-      runOnJS(setSelectedDay)(hit.iso);
-      const value =
-        metric === "percent" ? hit.percent : hit.minutes;
+      const value = metric === "percent" ? hit.percent : hit.minutes;
       const xPos = pressState.x.position.value;
       const yPos = pressState.y.value.position.value;
       runOnJS(assignActiveIndex)(xVal);
@@ -150,6 +151,14 @@ export default function HistoryScreen() {
       });
     }
   }, [groupedData, metric, assignActiveIndex, clearActiveIndex]);
+
+  useEffect(() => {
+    if (activeIndex == null) return;
+    const hit = groupedData[activeIndex];
+    if (hit) {
+      setSelectedDay(hit.iso);
+    }
+  }, [activeIndex, groupedData]);
 
   // ★ 篩選出「所選日期」的 records（沒選就顯示全部）
   const filteredHistory = useMemo(() => {
@@ -248,6 +257,11 @@ export default function HistoryScreen() {
         value: metric === "percent" ? d.percent : d.minutes,
       })),
     [groupedData, metric]
+  );
+
+  const metricColor = useMemo(
+    () => (metric === "percent" ? "#4f46e5" : "#10b981"),
+    [metric]
   );
 
   const xDomain = useMemo(() => {
@@ -420,6 +434,21 @@ export default function HistoryScreen() {
               <Text style={{ textAlign: "center" }}>{i18n.t("noHistory")}</Text>
             ) : (
               <>
+                {/* 圖例 / 標題 */}
+                <View style={{ alignItems: "center", marginBottom: 8 }}>
+                  {metric === "minutes" ? (
+                    <Legend
+                      color="#10b981"
+                      label={i18n.t("legendMinutes") || "充電時間（分鐘）"}
+                    />
+                  ) : (
+                    <Legend
+                      color="#4f46e5"
+                      label={i18n.t("legendPercent") || "補電量（百分點）"}
+                    />
+                  )}
+                </View>
+
                 {/* 圖表 */}
                 <View style={{ height: 300 }}>
                   <CartesianChart
@@ -427,7 +456,12 @@ export default function HistoryScreen() {
                     data={chartData}
                     xKey="index"
                     yKeys={["value"]}
-                    padding={{ left: 16, right: 16, top: 8, bottom: axisFont ? 32 : 24 }}
+                    padding={{
+                      left: 16,
+                      right: 16,
+                      top: 8,
+                      bottom: axisFont ? 32 : 24,
+                    }}
                     domain={{ x: xDomain }}
                     domainPadding={{ top: 20 }}
                     xAxis={
@@ -484,7 +518,8 @@ export default function HistoryScreen() {
                       const textHeight = axisFont.getSize();
                       const labelWidth = axisFont.getTextWidth(labelLine);
                       const valueWidth = axisFont.getTextWidth(valueLine);
-                      const boxWidth = Math.max(labelWidth, valueWidth) + padX * 2;
+                      const boxWidth =
+                        Math.max(labelWidth, valueWidth) + padX * 2;
                       const boxHeight = textHeight * 2 + padY * 3;
                       const boxX = Math.min(
                         Math.max(clampedX - boxWidth / 2, chartBounds.left + 4),
@@ -524,56 +559,106 @@ export default function HistoryScreen() {
                   >
                     {({ points, chartBounds }) => {
                       const highlightIdx = tooltipInfo?.index ?? activeIndex;
-                      const highlightPoint = (points.value ?? []).find(
+                      const pointList = points.value ?? [];
+                      const highlightPoint = pointList.find(
                         (pt) => Math.round(pt.xValue) === highlightIdx
                       );
-                      const barWidth = explicitBarWidth
-                        ? explicitBarWidth
-                        : (() => {
-                            if (!points.value || points.value.length < 2) {
-                              return 24;
-                            }
-                            const xs = points.value
-                              .map((p) => p.x)
-                              .sort((a, b) => a - b);
-                            const gapAvg =
-                              xs.length > 1
-                                ? (xs[xs.length - 1] - xs[0]) /
-                                  Math.max(xs.length - 1, 1)
-                                : 24;
-                            return gapAvg * (1 - betweenGroupPadding * 1.2);
-                          })();
+
+                      if (range === 7) {
+                        const barWidth = explicitBarWidth
+                          ? explicitBarWidth
+                          : (() => {
+                              if (pointList.length < 2) {
+                                return 24;
+                              }
+                              const xs = pointList
+                                .map((p) => p.x)
+                                .sort((a, b) => a - b);
+                              const gapAvg =
+                                xs.length > 1
+                                  ? (xs[xs.length - 1] - xs[0]) /
+                                    Math.max(xs.length - 1, 1)
+                                  : 24;
+                              return gapAvg * (1 - betweenGroupPadding * 1.2);
+                            })();
+
+                        return (
+                          <>
+                            <BarGroup
+                              chartBounds={chartBounds}
+                              betweenGroupPadding={betweenGroupPadding}
+                              withinGroupPadding={withinGroupPadding}
+                              barCount={chartData.length}
+                              barWidth={explicitBarWidth}
+                            >
+                              <BarGroup.Bar
+                                points={pointList}
+                                color={metricColor}
+                              />
+                            </BarGroup>
+                            {highlightPoint && barWidth ? (
+                              <RoundedRect
+                                x={highlightPoint.x - barWidth / 2}
+                                y={highlightPoint.y}
+                                width={barWidth}
+                                height={chartBounds.bottom - highlightPoint.y}
+                                r={4}
+                                color={
+                                  metric === "percent"
+                                    ? "rgba(79,70,229,0.25)"
+                                    : "rgba(16,185,129,0.25)"
+                                }
+                              />
+                            ) : null}
+                          </>
+                        );
+                      }
+
+                      const verticalHeight = Math.max(
+                        0,
+                        chartBounds.bottom - chartBounds.top
+                      );
+
                       return (
-                        <>
-                          <BarGroup
-                            chartBounds={chartBounds}
-                            betweenGroupPadding={betweenGroupPadding}
-                            withinGroupPadding={withinGroupPadding}
-                            barCount={chartData.length}
-                            barWidth={explicitBarWidth}
-                          >
-                            <BarGroup.Bar
-                              points={points.value ?? []}
-                              color={
-                                metric === "percent" ? "#4f46e5" : "#10b981"
-                              }
-                            />
-                          </BarGroup>
-                          {highlightPoint && barWidth ? (
-                            <RoundedRect
-                              x={highlightPoint.x - barWidth / 2}
-                              y={highlightPoint.y}
-                              width={barWidth}
-                              height={chartBounds.bottom - highlightPoint.y}
-                              r={4}
-                              color={
-                                metric === "percent"
-                                  ? "rgba(79,70,229,0.25)"
-                                  : "rgba(16,185,129,0.25)"
-                              }
-                            />
+                        <Group>
+                          <ChartLine
+                            points={pointList}
+                            color={metricColor}
+                            strokeWidth={2}
+                          />
+                          {highlightPoint ? (
+                            <Group>
+                              <RoundedRect
+                                x={highlightPoint.x - 1}
+                                y={chartBounds.top}
+                                width={2}
+                                height={verticalHeight}
+                                r={1}
+                                color={
+                                  metric === "percent"
+                                    ? "rgba(79,70,229,0.35)"
+                                    : "rgba(16,185,129,0.35)"
+                                }
+                              />
+                              <Circle
+                                cx={highlightPoint.x}
+                                cy={highlightPoint.y}
+                                r={6}
+                                color={
+                                  metric === "percent"
+                                    ? "rgba(79,70,229,0.2)"
+                                    : "rgba(16,185,129,0.2)"
+                                }
+                              />
+                              <Circle
+                                cx={highlightPoint.x}
+                                cy={highlightPoint.y}
+                                r={3.5}
+                                color={metricColor}
+                              />
+                            </Group>
                           ) : null}
-                        </>
+                        </Group>
                       );
                     }}
                   </CartesianChart>
@@ -613,28 +698,6 @@ export default function HistoryScreen() {
                         ? "在圖上長按/滑動選一天"
                         : "Press/slide on chart to select a day"}
                     </Text>
-                  )}
-                </View>
-
-                {/* 圖例 */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "center",
-                    gap: 12,
-                    marginTop: 8,
-                  }}
-                >
-                  {metric === "minutes" ? (
-                    <Legend
-                      color="#10b981"
-                      label={i18n.t("legendMinutes") || "充電時間（分鐘）"}
-                    />
-                  ) : (
-                    <Legend
-                      color="#4f46e5"
-                      label={i18n.t("legendPercent") || "補電量（百分點）"}
-                    />
                   )}
                 </View>
 

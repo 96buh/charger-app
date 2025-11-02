@@ -64,7 +64,10 @@ export function AlertProvider({ children }) {
             reason: tempText,
             type: i18n.t("temperatureAbnormal"),
             reasonKey: "tempOverThreshold",
-            reasonParams: { temp: tempThreshold },
+            reasonParams: {
+              temp: tempThreshold,
+              measuredTemp: temp,
+            },
             typeKey: "temperatureAbnormal",
           });
           speakAlert(tempText);
