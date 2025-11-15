@@ -192,12 +192,13 @@ export function AlertProvider({ children }) {
     setAbnormal(abnormalNow);
     setLabel(labelNow);
 
-    const lastAlertTime = lastLabelAlertTime.current[labelNow] ?? 0;
-    const cooldownElapsed =
+    const lastAlertTime = lastLabelAlertTime.current[labelNow];
+    const canRepeat =
+      lastAlertTime !== undefined &&
       Date.now() - lastAlertTime >= ALERT_REPEAT_INTERVAL_MS;
     const shouldTriggerAlert =
       abnormalNow &&
-      (!lastAbnormal.current || labelNow !== lastLabel.current || cooldownElapsed);
+      (lastAlertTime === undefined || canRepeat);
 
     if (shouldTriggerAlert) {
       showMessage({
@@ -244,7 +245,7 @@ export function AlertProvider({ children }) {
 
     lastAbnormal.current = abnormalNow;
     lastLabel.current = labelNow;
-    if (!abnormalNow || isCharging === false) {
+    if (isCharging === false) {
       lastLabelAlertTime.current = {};
     }
     // eslint-disable-next-line
