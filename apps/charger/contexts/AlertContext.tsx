@@ -19,6 +19,7 @@ import { isSupabaseConfigured } from "@/utils/supabaseClient";
 const ALERT_SOUND = require("@/assets/sounds/alert.mp3");
 
 const AlertContext = createContext();
+const ALERT_REPEAT_INTERVAL_MS = 5 * 60 * 1000;
 
 export function AlertProvider({ children }) {
   const { tempThreshold, language } = useSettings();
@@ -31,6 +32,7 @@ export function AlertProvider({ children }) {
   const [label, setLabel] = useState("");
   const lastAbnormal = useRef(false);
   const lastLabel = useRef("");
+  const lastLabelAlertTime = useRef<Record<string, number>>({});
   const timeoutRef = useRef(null);
   const prevCharging = useRef(isCharging);
   const lastSupabaseSignature = useRef<string | null>(null);
@@ -190,10 +192,14 @@ export function AlertProvider({ children }) {
     setAbnormal(abnormalNow);
     setLabel(labelNow);
 
-    if (
+    const lastAlertTime = lastLabelAlertTime.current[labelNow] ?? 0;
+    const cooldownElapsed =
+      Date.now() - lastAlertTime >= ALERT_REPEAT_INTERVAL_MS;
+    const shouldTriggerAlert =
       abnormalNow &&
-      (!lastAbnormal.current || labelNow !== lastLabel.current)
-    ) {
+      (!lastAbnormal.current || labelNow !== lastLabel.current || cooldownElapsed);
+
+    if (shouldTriggerAlert) {
       showMessage({
         message: i18n.t("abnormal", { label: displayLabel }),
         type: "danger",
@@ -225,6 +231,7 @@ export function AlertProvider({ children }) {
           hardware?.rawPayload?.data ??
           [],
       });
+      lastLabelAlertTime.current[labelNow] = Date.now();
     }
 
     // ---------- 3. 恢復正常或未充電，關閉通知 ----------
@@ -237,6 +244,9 @@ export function AlertProvider({ children }) {
 
     lastAbnormal.current = abnormalNow;
     lastLabel.current = labelNow;
+    if (!abnormalNow || isCharging === false) {
+      lastLabelAlertTime.current = {};
+    }
     // eslint-disable-next-line
   }, [hardware?.predicted, isCharging]);
 
