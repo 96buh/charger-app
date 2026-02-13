@@ -71,6 +71,7 @@ export function HardwareDataProvider({ children }) {
     mqttPort,
     mqttPath,
     mqttTopic,
+    mqttPredictionTopic,
     mqttUsername,
     mqttPassword,
     mqttUseTls,
@@ -212,8 +213,9 @@ export function HardwareDataProvider({ children }) {
 
   useEffect(() => {
     const host = mqttHost?.trim();
-    const topic = mqttTopic?.trim();
-    if (!host || !topic) {
+    const dataTopic = mqttTopic?.trim();
+    const predictionTopic = mqttPredictionTopic?.trim();
+    if (!host || (!dataTopic && !predictionTopic)) {
       setError(null);
       setData(defaultData);
       currentRef.current = [];
@@ -290,7 +292,48 @@ export function HardwareDataProvider({ children }) {
       setData(mapped);
     };
 
-    const handlePayload = (raw: any) => {
+    const handlePredictionPayload = (raw: any) => {
+      if (!raw || typeof raw !== "object") return;
+      const getTimestamp = (value: any) => {
+        if (typeof value === "number" && Number.isFinite(value)) return value;
+        if (typeof value === "string") {
+          const numeric = Number(value);
+          if (Number.isFinite(numeric)) return numeric;
+          const parsed = Date.parse(value);
+          if (!Number.isNaN(parsed)) return parsed;
+        }
+        return Date.now();
+      };
+      const incomingSequence = Array.isArray((raw as any).sequence)
+        ? (raw as any).sequence
+        : Array.isArray((raw as any).data)
+        ? (raw as any).data
+        : undefined;
+      setData((prev) => {
+        const base = prev ?? defaultData;
+        const nextSequence =
+          incomingSequence && incomingSequence.length > 0
+            ? incomingSequence
+            : base.sequence;
+        return {
+          ...base,
+          label: raw.label ?? base.label ?? raw.message,
+          predicted:
+            raw.predicted ??
+            raw.result ??
+            raw.prediction ??
+            base.predicted,
+          timestamp: getTimestamp(raw.timestamp ?? raw.time ?? Date.now()),
+          sequence: nextSequence,
+          rawPayload:
+            incomingSequence && incomingSequence.length > 0
+              ? raw
+              : base.rawPayload,
+        };
+      });
+    };
+
+    const handleDataPayload = (raw: any) => {
       if (!raw || typeof raw !== "object") return;
       let sequence: any[] = [];
       if (Array.isArray(raw)) {
@@ -339,10 +382,27 @@ export function HardwareDataProvider({ children }) {
     const handleMessageArrived = (mqttMessage: any) => {
       if (stopped) return;
       try {
-        const text = payloadToString(mqttMessage?.payloadString ?? mqttMessage?.payloadBytes);
+        const text = payloadToString(
+          mqttMessage?.payloadString ?? mqttMessage?.payloadBytes
+        );
         if (!text) return;
         const json = JSON.parse(text);
-        handlePayload(json);
+        const destination =
+          mqttMessage?.destinationName?.trim() ??
+          mqttMessage?.topic?.trim() ??
+          "";
+        const normalizeTopicName = (name?: string | null) =>
+          name ? name.trim().replace(/^\/+/, "") : "";
+        const normalizedDestination = normalizeTopicName(destination);
+        const normalizedPrediction = normalizeTopicName(predictionTopic);
+        if (
+          normalizedPrediction &&
+          normalizedDestination === normalizedPrediction
+        ) {
+          handlePredictionPayload(json);
+        } else {
+          handleDataPayload(json);
+        }
       } catch (err: any) {
         setError(`資料解析失敗：${err?.message || String(err)}`);
       }
@@ -371,11 +431,16 @@ export function HardwareDataProvider({ children }) {
         onSuccess: () => {
           if (stopped) return;
           setError(null);
-          try {
-            client?.subscribe(topic, { qos: 1 });
-          } catch (err: any) {
-            setError(`訂閱失敗：${err?.message || String(err)}`);
-          }
+          const topicsToSubscribe = [dataTopic, predictionTopic]
+            .filter((t): t is string => Boolean(t))
+            .filter((value, index, self) => self.indexOf(value) === index);
+          topicsToSubscribe.forEach((subscribeTopic) => {
+            try {
+              client?.subscribe(subscribeTopic, { qos: 1 });
+            } catch (err: any) {
+              setError(`訂閱失敗：${err?.message || String(err)}`);
+            }
+          });
         },
         onFailure: (error) => {
           if (stopped) return;
@@ -405,6 +470,7 @@ export function HardwareDataProvider({ children }) {
     mqttPort,
     mqttPath,
     mqttTopic,
+    mqttPredictionTopic,
     mqttUsername,
     mqttPassword,
     mqttUseTls,

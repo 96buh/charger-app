@@ -14,6 +14,7 @@ export function SettingsProvider({ children }) {
   const [mqttPort, setMqttPort] = useState("8884");
   const [mqttPath, setMqttPath] = useState("/mqtt");
   const [mqttTopic, setMqttTopic] = useState("");
+  const [mqttPredictionTopic, setMqttPredictionTopic] = useState("");
   const [mqttUsername, setMqttUsername] = useState("NUTNee");
   const [mqttPassword, setMqttPassword] = useState("NUTNee1234");
   const [mqttUseTls, setMqttUseTls] = useState(true);
@@ -36,6 +37,8 @@ export function SettingsProvider({ children }) {
         } else if (s.esp32Path) {
           setMqttTopic(s.esp32Path.replace(/^\//, ""));
         }
+        if (s.mqttPredictionTopic !== undefined)
+          setMqttPredictionTopic(s.mqttPredictionTopic);
         if (s.mqttUsername !== undefined) setMqttUsername(s.mqttUsername);
         if (s.mqttPassword !== undefined) setMqttPassword(s.mqttPassword);
         if (s.mqttUseTls !== undefined) setMqttUseTls(s.mqttUseTls);
@@ -58,6 +61,7 @@ export function SettingsProvider({ children }) {
         mqttPort,
         mqttPath,
         mqttTopic,
+        mqttPredictionTopic,
         mqttUsername,
         mqttPassword,
         mqttUseTls,
@@ -72,6 +76,7 @@ export function SettingsProvider({ children }) {
     mqttPort,
     mqttPath,
     mqttTopic,
+    mqttPredictionTopic,
     mqttUsername,
     mqttPassword,
     mqttUseTls,
@@ -93,6 +98,8 @@ export function SettingsProvider({ children }) {
         setMqttPath,
         mqttTopic,
         setMqttTopic,
+        mqttPredictionTopic,
+        setMqttPredictionTopic,
         mqttUsername,
         setMqttUsername,
         mqttPassword,

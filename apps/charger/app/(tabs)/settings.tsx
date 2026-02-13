@@ -29,6 +29,8 @@ export default function SettingsPage() {
     setMqttPath,
     mqttTopic,
     setMqttTopic,
+    mqttPredictionTopic,
+    setMqttPredictionTopic,
     mqttUsername,
     setMqttUsername,
     mqttPassword,
@@ -103,6 +105,16 @@ export default function SettingsPage() {
             value={mqttTopic}
             onChangeText={setMqttTopic}
             placeholder={i18n.t("exampleTopic")}
+            style={styles.input}
+            autoCapitalize="none"
+            returnKeyType="next"
+          />
+
+          <Text style={styles.label}>{i18n.t("mqttPredictionTopic")}</Text>
+          <TextInput
+            value={mqttPredictionTopic}
+            onChangeText={setMqttPredictionTopic}
+            placeholder={i18n.t("examplePredictionTopic")}
             style={styles.input}
             autoCapitalize="none"
             returnKeyType="next"

@@ -192,7 +192,11 @@ export function AlertProvider({ children }) {
     setAbnormal(abnormalNow);
     setLabel(labelNow);
 
-    const lastAlertTime = lastLabelAlertTime.current[labelNow];
+    const alertKey =
+      typeof predicted === "number" && predicted !== 0
+        ? `pred-${predicted}`
+        : labelNow || "unknown";
+    const lastAlertTime = lastLabelAlertTime.current[alertKey];
     const canRepeat =
       lastAlertTime !== undefined &&
       Date.now() - lastAlertTime >= ALERT_REPEAT_INTERVAL_MS;
@@ -216,11 +220,11 @@ export function AlertProvider({ children }) {
         typeKey: labelKey,
       });
       player.play();
+      speakAlert(displayLabel);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
         player.pause();
         player.seekTo(0);
-        speakAlert(displayLabel);
       }, 1000);
 
       void pushAlertToSupabase({
@@ -232,7 +236,7 @@ export function AlertProvider({ children }) {
           hardware?.rawPayload?.data ??
           [],
       });
-      lastLabelAlertTime.current[labelNow] = Date.now();
+      lastLabelAlertTime.current[alertKey] = Date.now();
     }
 
     // ---------- 3. 恢復正常或未充電，關閉通知 ----------
@@ -240,12 +244,11 @@ export function AlertProvider({ children }) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       player.pause();
       player.seekTo(0);
-      Speech.stop();
     }
 
     lastAbnormal.current = abnormalNow;
     lastLabel.current = labelNow;
-    if (isCharging === false) {
+    if (isCharging === false || predicted === 0) {
       lastLabelAlertTime.current = {};
     }
     // eslint-disable-next-line
