@@ -21,12 +21,22 @@ export default function SettingsPage() {
   const {
     language,
     setLanguage,
-    esp32Ip,
-    setEsp32Ip,
-    esp32Port,
-    setEsp32Port,
-    esp32Path,
-    setEsp32Path,
+    mqttHost,
+    setMqttHost,
+    mqttPort,
+    setMqttPort,
+    mqttPath,
+    setMqttPath,
+    mqttTopic,
+    setMqttTopic,
+    mqttPredictionTopic,
+    setMqttPredictionTopic,
+    mqttUsername,
+    setMqttUsername,
+    mqttPassword,
+    setMqttPassword,
+    mqttUseTls,
+    setMqttUseTls,
     tempThreshold,
     setTempThreshold,
     notificationsEnabled,
@@ -55,34 +65,79 @@ export default function SettingsPage() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{i18n.t("esp32Settings")}</Text>
-          <Text style={styles.label}>{i18n.t("ipAddress")}</Text>
+          <Text style={styles.sectionTitle}>{i18n.t("mqttSettings")}</Text>
+          <Text style={styles.label}>{i18n.t("brokerHost")}</Text>
           <TextInput
-            value={esp32Ip}
-            onChangeText={setEsp32Ip}
-            placeholder={i18n.t("exampleIp")}
+            value={mqttHost}
+            onChangeText={setMqttHost}
+            placeholder={i18n.t("exampleHostname")}
+            style={styles.input}
+            returnKeyType="next"
+          />
+
+          <Text style={styles.label}>{i18n.t("websocketPort")}</Text>
+          <TextInput
+            value={mqttPort}
+            onChangeText={setMqttPort}
+            placeholder={i18n.t("defaultMqttPort")}
             keyboardType="numeric"
             style={styles.input}
             returnKeyType="next"
           />
 
-          <Text style={styles.label}>{i18n.t("port")}</Text>
-          <TextInput
-            value={esp32Port}
-            onChangeText={setEsp32Port}
-            placeholder={i18n.t("defaultPort")}
-            keyboardType="numeric"
-            style={styles.input}
-            returnKeyType="next"
-          />
+          <View style={styles.notifRow}>
+            <Text style={styles.label}>{i18n.t("useTls")}</Text>
+            <Switch value={mqttUseTls} onValueChange={setMqttUseTls} />
+          </View>
 
-          <Text style={styles.label}>{i18n.t("apiPath")}</Text>
+          <Text style={styles.label}>{i18n.t("websocketPath")}</Text>
           <TextInput
-            value={esp32Path}
-            onChangeText={setEsp32Path}
-            placeholder="/get_result"
+            value={mqttPath}
+            onChangeText={setMqttPath}
+            placeholder="/mqtt"
             style={styles.input}
             autoCapitalize="none"
+            returnKeyType="next"
+          />
+
+          <Text style={styles.label}>{i18n.t("mqttTopic")}</Text>
+          <TextInput
+            value={mqttTopic}
+            onChangeText={setMqttTopic}
+            placeholder={i18n.t("exampleTopic")}
+            style={styles.input}
+            autoCapitalize="none"
+            returnKeyType="next"
+          />
+
+          <Text style={styles.label}>{i18n.t("mqttPredictionTopic")}</Text>
+          <TextInput
+            value={mqttPredictionTopic}
+            onChangeText={setMqttPredictionTopic}
+            placeholder={i18n.t("examplePredictionTopic")}
+            style={styles.input}
+            autoCapitalize="none"
+            returnKeyType="next"
+          />
+
+          <Text style={styles.label}>{i18n.t("mqttUsername")}</Text>
+          <TextInput
+            value={mqttUsername}
+            onChangeText={setMqttUsername}
+            placeholder={i18n.t("optionalUsername")}
+            style={styles.input}
+            autoCapitalize="none"
+            returnKeyType="next"
+          />
+
+          <Text style={styles.label}>{i18n.t("mqttPassword")}</Text>
+          <TextInput
+            value={mqttPassword}
+            onChangeText={setMqttPassword}
+            placeholder={i18n.t("optionalPassword")}
+            style={styles.input}
+            autoCapitalize="none"
+            secureTextEntry
             returnKeyType="done"
           />
         </View>

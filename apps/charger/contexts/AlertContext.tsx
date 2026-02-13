@@ -1,15 +1,25 @@
 import { showMessage } from "react-native-flash-message";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useHardwareData } from "@/contexts/HardwareContext";
-import { useEffect, useRef, useState, createContext, useContext } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  createContext,
+  useContext,
+  useCallback,
+} from "react";
 import { useAudioPlayer } from "expo-audio";
 import * as Speech from "expo-speech";
 import { useErrorLog } from "@/contexts/ErrorLogContext";
 import i18n from "@/utils/i18n";
+import { insertAlertRow } from "@/utils/supabaseAlerts";
+import { isSupabaseConfigured } from "@/utils/supabaseClient";
 
 const ALERT_SOUND = require("@/assets/sounds/alert.mp3");
 
 const AlertContext = createContext();
+const ALERT_REPEAT_INTERVAL_MS = 5 * 60 * 1000;
 
 export function AlertProvider({ children }) {
   const { tempThreshold, language } = useSettings();
@@ -22,8 +32,42 @@ export function AlertProvider({ children }) {
   const [label, setLabel] = useState("");
   const lastAbnormal = useRef(false);
   const lastLabel = useRef("");
+  const lastLabelAlertTime = useRef<Record<string, number>>({});
   const timeoutRef = useRef(null);
   const prevCharging = useRef(isCharging);
+  const lastSupabaseSignature = useRef<string | null>(null);
+
+  const pushAlertToSupabase = useCallback(
+    async (params: {
+      predicted: number;
+      timestamp?: string | number;
+      sequence?: any[];
+    }) => {
+      if (!isSupabaseConfigured()) return;
+      if (params.predicted === null || params.predicted === undefined) return;
+      const normalizedTimestamp =
+        typeof params.timestamp === "number" || typeof params.timestamp === "string"
+          ? params.timestamp
+          : Date.now();
+      const signature = `${normalizedTimestamp}-${params.predicted}`;
+
+      if (lastSupabaseSignature.current === signature) {
+        return;
+      }
+
+      try {
+        await insertAlertRow({
+          predicted: params.predicted,
+          timestamp: String(normalizedTimestamp),
+          sequencer: params.sequence ?? [],
+        });
+        lastSupabaseSignature.current = signature;
+      } catch (err) {
+        console.warn("[Supabase] Failed to insert alert", err);
+      }
+    },
+    []
+  );
 
   // ========= 播報異常語音 ========
   const speakAlert = (text: string) => {
@@ -148,10 +192,19 @@ export function AlertProvider({ children }) {
     setAbnormal(abnormalNow);
     setLabel(labelNow);
 
-    if (
+    const alertKey =
+      typeof predicted === "number" && predicted !== 0
+        ? `pred-${predicted}`
+        : labelNow || "unknown";
+    const lastAlertTime = lastLabelAlertTime.current[alertKey];
+    const canRepeat =
+      lastAlertTime !== undefined &&
+      Date.now() - lastAlertTime >= ALERT_REPEAT_INTERVAL_MS;
+    const shouldTriggerAlert =
       abnormalNow &&
-      (!lastAbnormal.current || labelNow !== lastLabel.current)
-    ) {
+      (lastAlertTime === undefined || canRepeat);
+
+    if (shouldTriggerAlert) {
       showMessage({
         message: i18n.t("abnormal", { label: displayLabel }),
         type: "danger",
@@ -167,12 +220,23 @@ export function AlertProvider({ children }) {
         typeKey: labelKey,
       });
       player.play();
+      speakAlert(displayLabel);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
         player.pause();
         player.seekTo(0);
-        speakAlert(displayLabel);
       }, 1000);
+
+      void pushAlertToSupabase({
+        predicted: predicted ?? 0,
+        timestamp: hardware?.timestamp,
+        sequence:
+          hardware?.sequence ??
+          hardware?.rawPayload?.sequence ??
+          hardware?.rawPayload?.data ??
+          [],
+      });
+      lastLabelAlertTime.current[alertKey] = Date.now();
     }
 
     // ---------- 3. 恢復正常或未充電，關閉通知 ----------
@@ -180,11 +244,13 @@ export function AlertProvider({ children }) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       player.pause();
       player.seekTo(0);
-      Speech.stop();
     }
 
     lastAbnormal.current = abnormalNow;
     lastLabel.current = labelNow;
+    if (isCharging === false || predicted === 0) {
+      lastLabelAlertTime.current = {};
+    }
     // eslint-disable-next-line
   }, [hardware?.predicted, isCharging]);
 

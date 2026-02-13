@@ -101,6 +101,8 @@ export default function Index() {
     ? THEME.warningBg
     : THEME.successBg;
 
+  const isPhoneCharging = hardware.isCharging === true;
+
   return (
     <>
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -109,6 +111,9 @@ export default function Index() {
         </View>
 
         <View style={styles.statusRow}>
+          {isPhoneCharging && (
+            <Text style={styles.chargingText}>{i18n.t("chargingNow")}</Text>
+          )}
           <Text
             style={[
               styles.statusPill,
@@ -212,6 +217,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   statusRow: { width: "100%", alignItems: "center" },
+  chargingText: {
+    fontSize: 14,
+    color: "#1b8f41",
+    fontWeight: "600",
+    marginBottom: 4,
+  },
   statusPill: {
     fontSize: 13,
     fontWeight: "600",

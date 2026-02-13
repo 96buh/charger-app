@@ -4,7 +4,9 @@ import React, {
   useState,
   useEffect,
   useRef,
+  useCallback,
 } from "react";
+import { Client } from "paho-mqtt";
 import { useSettings } from "@/contexts/SettingsContext";
 import {
   useChargeHistory,
@@ -27,6 +29,8 @@ type HardwareData = {
   label?: string;
   predicted?: number;
   timestamp?: number;
+  sequence?: any[];
+  rawPayload?: Record<string, any>;
 };
 
 type ContextType = {
@@ -50,6 +54,8 @@ const defaultData: HardwareData = {
   label: undefined,
   predicted: undefined,
   timestamp: undefined,
+  sequence: undefined,
+  rawPayload: undefined,
 };
 
 const DataContext = createContext<ContextType>({
@@ -60,7 +66,16 @@ const DataContext = createContext<ContextType>({
 });
 
 export function HardwareDataProvider({ children }) {
-  const { esp32Ip, esp32Port, esp32Path } = useSettings();
+  const {
+    mqttHost,
+    mqttPort,
+    mqttPath,
+    mqttTopic,
+    mqttPredictionTopic,
+    mqttUsername,
+    mqttPassword,
+    mqttUseTls,
+  } = useSettings();
   const [error, setError] = useState<string | null>(null);
 
   // 充電狀態 (本 context 自己監控，不相依 AlertContext)
@@ -118,6 +133,19 @@ export function HardwareDataProvider({ children }) {
     return () => levelSub.remove();
   }, [isCharging]);
 
+  const refreshBatteryLevel = useCallback(async () => {
+    try {
+      const latest = await Battery.getBatteryLevelAsync();
+      if (typeof latest === "number" && Number.isFinite(latest)) {
+        batteryLevelRef.current = latest;
+        return latest;
+      }
+    } catch (err) {
+      console.warn("Failed to refresh battery level", err);
+    }
+    return batteryLevelRef.current;
+  }, []);
+
   // 用ref存最近30筆資料
   const currentRef = useRef<number[]>([]);
   const voltageRef = useRef<number[]>([]);
@@ -134,149 +162,319 @@ export function HardwareDataProvider({ children }) {
   useEffect(() => {
     if (isCharging && !prevCharging.current) {
       // 開始充電時記錄電量
-      chargeStartLevel.current = batteryLevelRef.current;
       chargeStartTime.current = Date.now();
-      if (
-        chargeStartLevel.current != null &&
-        chargeStartTime.current != null
-      ) {
-        setActiveSession({
-          startTimeMs: chargeStartTime.current,
-          startPercent: Number((chargeStartLevel.current * 100).toFixed(2)),
-          livePercent: 0,
-          liveDurationMin: 0,
-        });
-      }
+      refreshBatteryLevel().then((level) => {
+        chargeStartLevel.current = level ?? batteryLevelRef.current;
+        if (
+          chargeStartLevel.current != null &&
+          chargeStartTime.current != null
+        ) {
+          setActiveSession({
+            startTimeMs: chargeStartTime.current,
+            startPercent: Number((chargeStartLevel.current * 100).toFixed(2)),
+            livePercent: 0,
+            liveDurationMin: 0,
+          });
+        }
+      });
     }
     if (prevCharging.current && !isCharging) {
       // 結束充電時計算充電百分比並記錄
-      const level = batteryLevelRef.current;
-      const startLevel = chargeStartLevel.current;
-      const startTime = chargeStartTime.current;
-      if (startLevel != null && level != null && startTime != null) {
-        const diff = (level - startLevel) * 100;
-        const durationMin = (Date.now() - startTime) / 60000;
-        const session: ChargeSession = {
-          id: Date.now().toString(),
-          timestamp: new Date().toISOString(),
-          percent: Math.max(0, Number(diff.toFixed(2))),
-          durationMin: Number(durationMin.toFixed(2)),
-          startPercent: Number((startLevel * 100).toFixed(2)),
-          endPercent: Number((level * 100).toFixed(2)),
-        };
-        addSession(session);
-      }
-
-      currentRef.current = [];
-      voltageRef.current = [];
-      powerRef.current = [];
-      temperatureRef.current = [];
-      chargeStartLevel.current = null;
-      chargeStartTime.current = null;
-      setActiveSession(null);
-    }
-    prevCharging.current = isCharging;
-  }, [isCharging, addSession]);
-
-  useEffect(() => {
-    if (!esp32Ip) return;
-    let timer: any;
-    let aborted = false;
-
-    const fetchData = async () => {
-      setError(null);
-      const url = `http://${esp32Ip.trim()}:${esp32Port || 8080}${
-        esp32Path.startsWith("/") ? esp32Path : "/" + esp32Path
-      }`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-      try {
-        const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        let json: any;
-        try {
-          json = await res.json();
-        } catch {
-          json = await res.text();
-        }
-        let sequence = Array.isArray(json.sequence) ? json.sequence : [];
-
-        // 取出新的一批
-        const newCurrent = sequence.map((s) => s.current ?? 0);
-        const newVoltage = sequence.map((s) => s.voltage ?? 0);
-        const newPower = sequence.map((s) => s.power ?? 0);
-        const newTemp = sequence.map((s) => s.temp_C ?? 0);
-
-        // 更新ref，保留最近WINDOW_SEC筆
-        currentRef.current = [...currentRef.current, ...newCurrent].slice(
-          -WINDOW_SEC
-        );
-        voltageRef.current = [...voltageRef.current, ...newVoltage].slice(
-          -WINDOW_SEC
-        );
-        powerRef.current = [...powerRef.current, ...newPower].slice(
-          -WINDOW_SEC
-        );
-        temperatureRef.current = [...temperatureRef.current, ...newTemp].slice(
-          -WINDOW_SEC
-        );
-
-        // stats 取最後一筆（最新）
-        let last =
-          sequence.length > 0 ? sequence[sequence.length - 1] : undefined;
-
-        const mapped: HardwareData = {
-          stats: last
-            ? {
-                current_mA: (last.current ?? 0) * 1000,
-                voltage_mV: (last.voltage ?? 0) * 1000,
-                temperature_C: last.temp_C ?? 0,
-              }
-            : null,
-          currentList: [...currentRef.current],
-          voltageList: [...voltageRef.current],
-          powerList: [...powerRef.current],
-          temperatureList: [...temperatureRef.current],
-          label: json.label,
-          predicted: json.predicted,
-          timestamp: json.timestamp,
-        };
-
-        if (!aborted) setData(mapped);
-        if (res.status >= 400 && !aborted) setError("伺服器錯誤或路徑不存在");
-      } catch (err: any) {
-        clearTimeout(timeoutId);
-        if (!aborted) {
-          if (err.name === "AbortError") {
-            setError("連線逾時");
-          } else {
-            setError("連線失敗：" + (err.message || err.toString()));
-          }
-          setData(defaultData);
+      refreshBatteryLevel().then((latestLevel) => {
+        const level =
+          latestLevel ?? batteryLevelRef.current ?? chargeStartLevel.current;
+        const startLevel = chargeStartLevel.current;
+        const startTime = chargeStartTime.current;
+        if (startLevel != null && level != null && startTime != null) {
+          const diff = (level - startLevel) * 100;
+          const durationMin = (Date.now() - startTime) / 60000;
+          const session: ChargeSession = {
+            id: Date.now().toString(),
+            timestamp: new Date().toISOString(),
+            percent: Math.max(0, Number(diff.toFixed(2))),
+            durationMin: Number(durationMin.toFixed(2)),
+            startPercent: Number((startLevel * 100).toFixed(2)),
+            endPercent: Number((level * 100).toFixed(2)),
+          };
+          addSession(session);
         }
 
-        // reset window if失敗
         currentRef.current = [];
         voltageRef.current = [];
         powerRef.current = [];
         temperatureRef.current = [];
-      }
-    };
+        chargeStartLevel.current = null;
+        chargeStartTime.current = null;
+        setActiveSession(null);
+      });
+    }
+    prevCharging.current = isCharging;
+  }, [isCharging, addSession, refreshBatteryLevel]);
 
-    fetchData();
-    timer = setInterval(fetchData, 10000);
+  useEffect(() => {
+    const host = mqttHost?.trim();
+    const dataTopic = mqttTopic?.trim();
+    const predictionTopic = mqttPredictionTopic?.trim();
+    if (!host || (!dataTopic && !predictionTopic)) {
+      setError(null);
+      setData(defaultData);
+      currentRef.current = [];
+      voltageRef.current = [];
+      powerRef.current = [];
+      temperatureRef.current = [];
+      return;
+    }
 
-    return () => {
-      aborted = true;
-      clearInterval(timer);
-      // 你也可以清空ref
+    const scheme = mqttUseTls ? "wss" : "ws";
+    const sanitizedHost = host.replace(/^wss?:\/\//i, "").replace(/\/+$/, "");
+    const portNumber = Number(mqttPort?.trim()) || (mqttUseTls ? 8884 : 8083);
+    const pathRaw = mqttPath?.trim() ?? "";
+    const normalizedPath = pathRaw
+      ? pathRaw.startsWith("/")
+        ? pathRaw
+        : `/${pathRaw}`
+      : "";
+    const clientId = `charger-${Math.random().toString(16).slice(2, 10)}`;
+    const decoder =
+      typeof TextDecoder !== "undefined" ? new TextDecoder() : null;
+    setError(null);
+
+    let stopped = false;
+    let client: Client | null = null;
+
+    const resetBuffers = () => {
       currentRef.current = [];
       voltageRef.current = [];
       powerRef.current = [];
       temperatureRef.current = [];
     };
-  }, [esp32Ip, esp32Port, esp32Path]);
+
+    const handleSequence = (sequence: any[], root: any) => {
+      const newCurrent = sequence.map((s) => s.current ?? s.current_A ?? 0);
+      const newVoltage = sequence.map((s) => s.voltage ?? s.voltage_V ?? 0);
+      const newPower = sequence.map((s) => s.power ?? s.power_W ?? 0);
+      const newTemp = sequence.map((s) => s.temp_C ?? s.temperature_C ?? 0);
+
+      currentRef.current = [...currentRef.current, ...newCurrent].slice(
+        -WINDOW_SEC
+      );
+      voltageRef.current = [...voltageRef.current, ...newVoltage].slice(
+        -WINDOW_SEC
+      );
+      powerRef.current = [...powerRef.current, ...newPower].slice(-WINDOW_SEC);
+      temperatureRef.current = [
+        ...temperatureRef.current,
+        ...newTemp,
+      ].slice(-WINDOW_SEC);
+
+      const lastSample =
+        sequence.length > 0 ? sequence[sequence.length - 1] : undefined;
+
+      const mapped: HardwareData = {
+        stats: lastSample
+          ? {
+              current_mA: (lastSample.current ?? 0) * 1000,
+              voltage_mV: (lastSample.voltage ?? 0) * 1000,
+              temperature_C: lastSample.temp_C ?? 0,
+            }
+          : null,
+        currentList: [...currentRef.current],
+        voltageList: [...voltageRef.current],
+        powerList: [...powerRef.current],
+        temperatureList: [...temperatureRef.current],
+        label: root?.label ?? lastSample?.label,
+        predicted: root?.predicted ?? lastSample?.predicted,
+        timestamp: root?.timestamp ?? lastSample?.timestamp ?? Date.now(),
+        sequence: [...sequence],
+        rawPayload: root,
+      };
+      setError(null);
+      setData(mapped);
+    };
+
+    const handlePredictionPayload = (raw: any) => {
+      if (!raw || typeof raw !== "object") return;
+      const getTimestamp = (value: any) => {
+        if (typeof value === "number" && Number.isFinite(value)) return value;
+        if (typeof value === "string") {
+          const numeric = Number(value);
+          if (Number.isFinite(numeric)) return numeric;
+          const parsed = Date.parse(value);
+          if (!Number.isNaN(parsed)) return parsed;
+        }
+        return Date.now();
+      };
+      const incomingSequence = Array.isArray((raw as any).sequence)
+        ? (raw as any).sequence
+        : Array.isArray((raw as any).data)
+        ? (raw as any).data
+        : undefined;
+      setData((prev) => {
+        const base = prev ?? defaultData;
+        const nextSequence =
+          incomingSequence && incomingSequence.length > 0
+            ? incomingSequence
+            : base.sequence;
+        return {
+          ...base,
+          label: raw.label ?? base.label ?? raw.message,
+          predicted:
+            raw.predicted ??
+            raw.result ??
+            raw.prediction ??
+            base.predicted,
+          timestamp: getTimestamp(raw.timestamp ?? raw.time ?? Date.now()),
+          sequence: nextSequence,
+          rawPayload:
+            incomingSequence && incomingSequence.length > 0
+              ? raw
+              : base.rawPayload,
+        };
+      });
+    };
+
+    const handleDataPayload = (raw: any) => {
+      if (!raw || typeof raw !== "object") return;
+      let sequence: any[] = [];
+      if (Array.isArray(raw)) {
+        sequence = raw;
+      } else if (Array.isArray(raw.sequence)) {
+        sequence = raw.sequence;
+      } else if (Array.isArray(raw.data)) {
+        sequence = raw.data;
+      } else if (
+        raw.current !== undefined ||
+        raw.voltage !== undefined ||
+        raw.power !== undefined ||
+        raw.temp_C !== undefined
+      ) {
+        sequence = [raw];
+      }
+
+      if (sequence.length === 0) return;
+      handleSequence(sequence, raw);
+    };
+
+    const payloadToString = (
+      message: string | ArrayBuffer | ArrayBufferView | null
+    ) => {
+      if (!message) return "";
+      if (typeof message === "string") return message;
+      if (decoder) {
+        if (message instanceof ArrayBuffer) {
+          return decoder.decode(new Uint8Array(message));
+        }
+        if (ArrayBuffer.isView(message)) {
+          return decoder.decode(message as ArrayBufferView);
+        }
+      }
+      return "";
+    };
+
+    const handleConnectionLost = (responseObject: any) => {
+      if (stopped) return;
+      const reason = responseObject?.errorMessage || "未知錯誤";
+      setError(`MQTT 已斷線：${reason}`);
+      resetBuffers();
+      setData(defaultData);
+    };
+
+    const handleMessageArrived = (mqttMessage: any) => {
+      if (stopped) return;
+      try {
+        const text = payloadToString(
+          mqttMessage?.payloadString ?? mqttMessage?.payloadBytes
+        );
+        if (!text) return;
+        const json = JSON.parse(text);
+        const destination =
+          mqttMessage?.destinationName?.trim() ??
+          mqttMessage?.topic?.trim() ??
+          "";
+        const normalizeTopicName = (name?: string | null) =>
+          name ? name.trim().replace(/^\/+/, "") : "";
+        const normalizedDestination = normalizeTopicName(destination);
+        const normalizedPrediction = normalizeTopicName(predictionTopic);
+        if (
+          normalizedPrediction &&
+          normalizedDestination === normalizedPrediction
+        ) {
+          handlePredictionPayload(json);
+        } else {
+          handleDataPayload(json);
+        }
+      } catch (err: any) {
+        setError(`資料解析失敗：${err?.message || String(err)}`);
+      }
+    };
+
+    const connectClient = () => {
+      try {
+        const uri = `${scheme}://${sanitizedHost}:${portNumber}${
+          normalizedPath || "/mqtt"
+        }`;
+        client = new Client(uri, clientId);
+      } catch (err: any) {
+        setError("建立 MQTT Client 失敗：" + (err?.message || String(err)));
+        return;
+      }
+
+      client.onConnectionLost = handleConnectionLost;
+      client.onMessageArrived = handleMessageArrived;
+
+      client.connect({
+        useSSL: mqttUseTls,
+        userName: mqttUsername?.trim() ?? "",
+        password: mqttPassword ?? "",
+        timeout: 10,
+        keepAliveInterval: 45,
+        onSuccess: () => {
+          if (stopped) return;
+          setError(null);
+          const topicsToSubscribe = [dataTopic, predictionTopic]
+            .filter((t): t is string => Boolean(t))
+            .filter((value, index, self) => self.indexOf(value) === index);
+          topicsToSubscribe.forEach((subscribeTopic) => {
+            try {
+              client?.subscribe(subscribeTopic, { qos: 1 });
+            } catch (err: any) {
+              setError(`訂閱失敗：${err?.message || String(err)}`);
+            }
+          });
+        },
+        onFailure: (error) => {
+          if (stopped) return;
+          const reason = error?.errorMessage || "未知錯誤";
+          setError(`MQTT 連線失敗：${reason}`);
+          setData(defaultData);
+          resetBuffers();
+        },
+      });
+    };
+
+    connectClient();
+
+    return () => {
+      stopped = true;
+      resetBuffers();
+      if (client && client.isConnected()) {
+        try {
+          client.disconnect();
+        } catch {
+          // ignore disconnect errors
+        }
+      }
+    };
+  }, [
+    mqttHost,
+    mqttPort,
+    mqttPath,
+    mqttTopic,
+    mqttPredictionTopic,
+    mqttUsername,
+    mqttPassword,
+    mqttUseTls,
+  ]);
 
   return (
     <DataContext.Provider value={{ data, error, isCharging, activeSession }}>

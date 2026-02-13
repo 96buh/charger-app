@@ -1,3 +1,5 @@
+import "react-native-get-random-values";
+import "react-native-url-polyfill/auto";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { HardwareDataProvider } from "@/contexts/HardwareContext";
